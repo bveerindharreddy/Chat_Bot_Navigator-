@@ -12,7 +12,7 @@ type Saved = { open: boolean; lines: Line[]; resume: Resume | null };
 
 const script = document.currentScript as HTMLScriptElement | null;
 const API = script?.src ? new URL(script.src).origin : location.origin;
-const ACCENT = script?.dataset.accent || "#10b981";
+const ACCENT = script?.dataset.accent || "#0e7fae";
 const TITLE = script?.dataset.title || "Shopping assistant";
 const KEY = "techthrust-shop-agent";
 const RESUME_WINDOW_MS = 60_000;

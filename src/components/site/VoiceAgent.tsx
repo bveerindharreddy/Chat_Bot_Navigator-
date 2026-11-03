@@ -6,6 +6,8 @@ import { MicCapture, Player } from "@/lib/voice/audio";
 import { runTool } from "@/lib/voice/tools";
 import { SLIDES } from "@/lib/presentation/slides";
 import { useVoiceUi, voiceUi } from "@/lib/voice/ui-store";
+import { useDemo } from "@/components/demo";
+import type { ProductOption } from "@/lib/site";
 
 // After each slide the agent asks for questions; if the visitor stays silent this long, the next slide starts.
 const QUESTION_WAIT_MS = 8000;
@@ -17,6 +19,7 @@ export default function VoiceAgent() {
   const router = useRouter();
   const pathname = useLocation({ select: (l) => l.pathname });
   const { pitch, personalization, presentRequest, lead } = useVoiceUi();
+  const { openDemo } = useDemo();
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
@@ -107,10 +110,11 @@ export default function VoiceAgent() {
     sendSystem("The visitor pressed 'stop talking'. Stop immediately and stay silent until they speak. Do not announce this.");
   }, [sendSystem]);
 
-  const hooks = useRef({ startPresentation: () => {}, stopPresentation: () => {}, resumePresentation: () => {} });
+  const hooks = useRef({ startPresentation: () => {}, stopPresentation: () => {}, resumePresentation: () => {}, openDemo: (_p?: string) => {} });
   hooks.current = {
     startPresentation: () => { setTimeout(() => { void beginPresentation(); }, 700); },
     resumePresentation: () => { setTimeout(advance, 600); },
+    openDemo: (p) => openDemo(p as ProductOption | undefined),
     stopPresentation: () => { clearTimeout(advTimer.current); voiceUi.set({ presentation: { ...voiceUi.get().presentation, active: false } }); },
   };
 
@@ -262,37 +266,37 @@ export default function VoiceAgent() {
     <>
       {personalization && (
         <div data-voice-agent className="fixed top-20 inset-x-0 z-40 flex justify-center px-4 pointer-events-none">
-          <div className="pointer-events-auto max-w-3xl w-full gradient-border-card px-6 py-4 text-center relative">
+          <div className="pointer-events-auto max-w-3xl w-full card-premium px-6 py-4 text-center relative">
             <button aria-label="Dismiss" onClick={() => voiceUi.set({ personalization: null })} className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             {(personalization.business_name || personalization.industry) && (
-              <div className="font-mono text-xs uppercase tracking-widest text-cyan">
+              <div className="font-mono text-xs uppercase tracking-widest text-primary">
                 {[personalization.business_name, personalization.industry].filter(Boolean).join(" · ")}
               </div>
             )}
-            <div className="mt-1 font-display text-xl md:text-2xl font-bold text-gradient">{personalization.headline}</div>
+            <div className="mt-1 font-display text-xl md:text-2xl font-bold text-primary">{personalization.headline}</div>
             {personalization.subheadline && <p className="mt-1 text-sm text-muted-foreground">{personalization.subheadline}</p>}
           </div>
         </div>
       )}
 
       {pitch && (
-        <div data-voice-agent className="fixed left-4 bottom-24 z-50 w-[min(24rem,calc(100vw-2rem))] gradient-border-card p-6 shadow-2xl">
+        <div data-voice-agent className="fixed left-4 bottom-24 z-50 w-[min(24rem,calc(100vw-2rem))] card-premium p-6 shadow-2xl">
           <button aria-label="Close pitch" onClick={() => voiceUi.set({ pitch: null })} className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           <div className="font-display text-xl font-bold">{pitch.title}</div>
-          <p className="mt-1 text-sm text-cyan">{pitch.tagline}</p>
+          <p className="mt-1 text-sm text-primary">{pitch.tagline}</p>
           <ul className="mt-4 space-y-2 text-sm">
-            {pitch.bullets.map((b, i) => <li key={i} className="flex gap-2"><Sparkles className="h-4 w-4 text-cyan shrink-0 mt-0.5" />{b}</li>)}
+            {pitch.bullets.map((b, i) => <li key={i} className="flex gap-2"><Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />{b}</li>)}
           </ul>
           {pitch.cta && pathname !== "/contact" && (
-            <button onClick={() => { void router.navigate({ to: "/contact" }); voiceUi.set({ pitch: null }); }} className="mt-5 rounded-full btn-glow btn-glow-hover px-5 py-2 text-sm">{pitch.cta}</button>
+            <button onClick={() => { void router.navigate({ to: "/contact" }); voiceUi.set({ pitch: null }); }} className="mt-5 rounded-full bg-primary text-primary-foreground shadow-glow  px-5 py-2 text-sm">{pitch.cta}</button>
           )}
         </div>
       )}
 
-      <div data-voice-agent className="fixed right-4 bottom-24 md:bottom-6 z-50 flex flex-col items-end gap-2">
+      <div data-voice-agent className={`fixed right-4 bottom-24 z-50 flex flex-col items-end gap-2 ${pathname === "/presentation" ? "md:bottom-24" : "md:bottom-6"}`}>
         {chatOpen && (
-          <div className="w-[min(23rem,calc(100vw-2rem))] gradient-border-card shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <div className="w-[min(23rem,calc(100vw-2rem))] card-premium shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2 font-display font-bold text-sm">
                 <span className={`h-2.5 w-2.5 rounded-full ${live ? "bg-green-400 animate-pulse" : "bg-muted-foreground"}`} />
                 Thrust · AI Consultant
@@ -301,17 +305,17 @@ export default function VoiceAgent() {
             </div>
             <div ref={logRef} className="h-72 overflow-y-auto px-4 py-3 space-y-2.5 text-sm">
               {lines.length === 0 && (
-                <div className="rounded-2xl rounded-bl-sm bg-white/5 px-3.5 py-2.5 max-w-[85%]">Hi! I'm Thrust. Ask me about our services, or tell me about your business. You can type here or tap the mic to talk.</div>
+                <div className="rounded-2xl rounded-bl-sm bg-muted px-3.5 py-2.5 max-w-[85%]">Hi! I'm Thrust. Ask me about our services, or tell me about your business. You can type here or tap the mic to talk.</div>
               )}
               {lines.map((l, i) => (
                 <div key={i} className={`flex ${l.role === "you" ? "justify-end" : "justify-start"}`}>
-                  <div className={`px-3.5 py-2.5 max-w-[85%] rounded-2xl whitespace-pre-wrap ${l.role === "you" ? "rounded-br-sm bg-cyan/20" : "rounded-bl-sm bg-white/5"}`}>{l.text}</div>
+                  <div className={`px-3.5 py-2.5 max-w-[85%] rounded-2xl whitespace-pre-wrap ${l.role === "you" ? "rounded-br-sm bg-primary/15" : "rounded-bl-sm bg-muted"}`}>{l.text}</div>
                 </div>
               ))}
-              {thinking && <div className="flex justify-start"><div className="rounded-2xl rounded-bl-sm bg-white/5 px-3.5 py-2.5"><Loader2 className="h-4 w-4 animate-spin text-cyan" /></div></div>}
+              {thinking && <div className="flex justify-start"><div className="rounded-2xl rounded-bl-sm bg-muted px-3.5 py-2.5"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div></div>}
             </div>
             {error && <div className="px-4 pb-2 text-xs text-red-400">{error}</div>}
-            <form onSubmit={(e) => { e.preventDefault(); void sendText(draft); }} className="flex items-center gap-2 border-t border-white/10 p-3">
+            <form onSubmit={(e) => { e.preventDefault(); void sendText(draft); }} className="flex items-center gap-2 border-t border-border p-3">
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -319,34 +323,34 @@ export default function VoiceAgent() {
                 aria-label="Type your message"
                 maxLength={1000}
                 autoComplete="off"
-                className="flex-1 min-w-0 glass px-4 py-2.5 text-sm focus:outline-none focus:border-cyan/60"
+                className="flex-1 min-w-0 border border-border bg-card/90 backdrop-blur rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/60"
               />
-              <button type="submit" aria-label="Send message" disabled={!draft.trim() || status === "connecting"} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full btn-glow disabled:opacity-40">
+              <button type="submit" aria-label="Send message" disabled={!draft.trim() || status === "connecting"} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-glow disabled:opacity-40">
                 {status === "connecting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
               </button>
             </form>
           </div>
         )}
         {!chatOpen && voiceOn && lines.length > 0 && (
-          <div className="max-w-[min(20rem,calc(100vw-2rem))] glass px-4 py-3 text-sm shadow-xl">
+          <div className="max-w-[min(20rem,calc(100vw-2rem))] border border-border bg-card/90 backdrop-blur rounded-2xl px-4 py-3 text-sm shadow-xl">
             {lines.slice(-2).map((l, i) => (
               <p key={i} className={l.role === "you" ? "text-muted-foreground" : ""}>{l.text.slice(-220)}</p>
             ))}
           </div>
         )}
         {!chatOpen && error && (
-          <div className="max-w-[min(20rem,calc(100vw-2rem))] glass px-4 py-3 text-sm text-red-400 shadow-xl">{error}</div>
+          <div className="max-w-[min(20rem,calc(100vw-2rem))] border border-border bg-card/90 backdrop-blur rounded-2xl px-4 py-3 text-sm text-red-400 shadow-xl">{error}</div>
         )}
         <div className="flex items-center gap-3">
           {voiceOn && (
-            <div className="flex items-center gap-3 rounded-full glass pl-4 pr-2 py-2 shadow-xl">
+            <div className="flex items-center gap-3 rounded-full border border-border bg-card/90 backdrop-blur pl-4 pr-2 py-2 shadow-xl">
               <span className="font-mono text-xs tabular-nums text-muted-foreground w-10">
                 {status === "connecting" ? <Loader2 className="h-4 w-4 animate-spin" /> : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`}
               </span>
-              <button aria-label="Stop talking" title="Stop talking" onClick={stopTalking} className="flex h-10 w-10 items-center justify-center rounded-full glass hover:border-cyan/50">
+              <button aria-label="Stop talking" title="Stop talking" onClick={stopTalking} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card/90 backdrop-blur hover:border-primary/50">
                 <VolumeX className="h-4 w-4" />
               </button>
-              <button aria-label={muted ? "Unmute" : "Mute"} onClick={() => setMuted((m) => !m)} className="flex h-10 w-10 items-center justify-center rounded-full glass hover:border-cyan/50">
+              <button aria-label={muted ? "Unmute" : "Mute"} onClick={() => setMuted((m) => !m)} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card/90 backdrop-blur hover:border-primary/50">
                 {muted ? <MicOff className="h-4 w-4 text-red-400" /> : <Mic className="h-4 w-4" />}
               </button>
               <button aria-label="End call" onClick={stop} className="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500">
@@ -355,17 +359,17 @@ export default function VoiceAgent() {
             </div>
           )}
           {!chatOpen && (
-            <button aria-label="Chat with Thrust" title="Chat" onClick={() => setChatOpen(true)} className="flex h-12 w-12 items-center justify-center rounded-full glass shadow-xl hover:border-cyan/50">
+            <button aria-label="Chat with Thrust" title="Chat" onClick={() => setChatOpen(true)} className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card/90 backdrop-blur shadow-xl hover:border-primary/50">
               <MessageSquare className="h-5 w-5" />
             </button>
           )}
           <button
             aria-label="Talk to Thrust, our AI consultant"
             onClick={() => { if (status === "connecting" || voiceOn) return; void enableVoice(); }}
-            className={`relative flex h-16 w-16 items-center justify-center rounded-full btn-glow ${voiceOn ? "ring-4 ring-cyan/40" : "btn-glow-hover animate-pulse-glow"}`}
+            className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-glow ${voiceOn ? "ring-4 ring-primary/40" : " "}`}
           >
             <Headset className="h-7 w-7" />
-            {voiceOn && <span className="absolute inset-0 rounded-full ring-2 ring-cyan/60 animate-ping" />}
+            {voiceOn && <span className="absolute inset-0 rounded-full ring-2 ring-primary/60 animate-ping" />}
           </button>
         </div>
       </div>

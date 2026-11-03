@@ -5,7 +5,12 @@ import { voiceUi, type Personalization, type Pitch } from "./ui-store";
 
 type Args = Record<string, unknown>;
 type Navigate = (path: string) => Promise<void>;
-export type Hooks = { startPresentation: () => void; stopPresentation: () => void; resumePresentation: () => void };
+export type Hooks = {
+  startPresentation: () => void;
+  stopPresentation: () => void;
+  resumePresentation: () => void;
+  openDemo: (product?: string) => void;
+};
 
 async function waitFor<T>(get: () => T | null, ms = 3000): Promise<T | null> {
   const end = Date.now() + ms;
@@ -26,7 +31,8 @@ function setValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 }
 
 
-const form = () => document.querySelector<HTMLFormElement>("main form");
+// The visible form: the demo dialog if open, otherwise the page's own form.
+const form = () => document.querySelector<HTMLFormElement>("[role=dialog] form") ?? document.querySelector<HTMLFormElement>("main form");
 
 export async function runTool(name: string, args: Args, navigate: Navigate, hooks?: Hooks): Promise<Args> {
   switch (name) {
@@ -73,12 +79,17 @@ export async function runTool(name: string, args: Args, navigate: Navigate, hook
       });
       return { ok: true };
     }
-    case "fill_contact_form": {
-      if (location.pathname !== "/contact") await navigate("/contact");
+    case "open_demo_form": {
+      hooks?.openDemo(typeof args.product === "string" ? args.product : undefined);
       const f = await waitFor(form);
-      if (!f) return { ok: false, error: "contact form not found" };
+      return f ? { ok: true } : { ok: false, error: "could not open the demo form" };
+    }
+    case "fill_contact_form": {
+      let f = form();
+      if (!f) { hooks?.openDemo(); f = await waitFor(form); } // no form on screen: open the Book a Demo dialog
+      if (!f) return { ok: false, error: "no form available" };
       const filled: string[] = [];
-      for (const key of ["name", "company", "email", "phone", "service", "message"]) {
+      for (const key of ["name", "company", "email", "phone", "product", "message"]) {
         const v = args[key];
         if (typeof v !== "string" || !v) continue;
         const el = f.elements.namedItem(key) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;

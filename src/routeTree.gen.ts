@@ -9,16 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as ServicesRouteImport } from './routes/services'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PresentationRouteImport } from './routes/presentation'
 import { Route as ContactRouteImport } from './routes/contact'
-import { Route as AiProductsRouteImport } from './routes/ai-products'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductsIndexRouteImport } from './routes/products.index'
+import { Route as ProductsVocalisRouteImport } from './routes/products.vocalis'
+import { Route as ProductsVelynoraLiteRouteImport } from './routes/products.velynora-lite'
+import { Route as ProductsVelynoraRouteImport } from './routes/products.velynora'
 import { Route as ApiLiveTokenRouteImport } from './routes/api.live-token'
 import { Route as ApiLeadRouteImport } from './routes/api.lead'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopRoute = ShopRouteImport.update({
   id: '/shop',
   path: '/shop',
@@ -27,6 +43,11 @@ const ShopRoute = ShopRouteImport.update({
 const ServicesRoute = ServicesRouteImport.update({
   id: '/services',
   path: '/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PresentationRoute = PresentationRouteImport.update({
@@ -39,11 +60,6 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AiProductsRoute = AiProductsRouteImport.update({
-  id: '/ai-products',
-  path: '/ai-products',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -52,6 +68,26 @@ const AboutRoute = AboutRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsIndexRoute = ProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsVocalisRoute = ProductsVocalisRouteImport.update({
+  id: '/products/vocalis',
+  path: '/products/vocalis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsVelynoraLiteRoute = ProductsVelynoraLiteRouteImport.update({
+  id: '/products/velynora-lite',
+  path: '/products/velynora-lite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsVelynoraRoute = ProductsVelynoraRouteImport.update({
+  id: '/products/velynora',
+  path: '/products/velynora',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLiveTokenRoute = ApiLiveTokenRouteImport.update({
@@ -68,87 +104,143 @@ const ApiLeadRoute = ApiLeadRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/ai-products': typeof AiProductsRoute
   '/contact': typeof ContactRoute
   '/presentation': typeof PresentationRoute
+  '/privacy': typeof PrivacyRoute
   '/services': typeof ServicesRoute
   '/shop': typeof ShopRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/api/lead': typeof ApiLeadRoute
   '/api/live-token': typeof ApiLiveTokenRoute
+  '/products/velynora': typeof ProductsVelynoraRoute
+  '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
+  '/products/vocalis': typeof ProductsVocalisRoute
+  '/products/': typeof ProductsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/ai-products': typeof AiProductsRoute
   '/contact': typeof ContactRoute
   '/presentation': typeof PresentationRoute
+  '/privacy': typeof PrivacyRoute
   '/services': typeof ServicesRoute
   '/shop': typeof ShopRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/api/lead': typeof ApiLeadRoute
   '/api/live-token': typeof ApiLiveTokenRoute
+  '/products/velynora': typeof ProductsVelynoraRoute
+  '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
+  '/products/vocalis': typeof ProductsVocalisRoute
+  '/products': typeof ProductsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/ai-products': typeof AiProductsRoute
   '/contact': typeof ContactRoute
   '/presentation': typeof PresentationRoute
+  '/privacy': typeof PrivacyRoute
   '/services': typeof ServicesRoute
   '/shop': typeof ShopRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/api/lead': typeof ApiLeadRoute
   '/api/live-token': typeof ApiLiveTokenRoute
+  '/products/velynora': typeof ProductsVelynoraRoute
+  '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
+  '/products/vocalis': typeof ProductsVocalisRoute
+  '/products/': typeof ProductsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/about'
-    | '/ai-products'
     | '/contact'
     | '/presentation'
+    | '/privacy'
     | '/services'
     | '/shop'
+    | '/sitemap.xml'
+    | '/terms'
     | '/api/lead'
     | '/api/live-token'
+    | '/products/velynora'
+    | '/products/velynora-lite'
+    | '/products/vocalis'
+    | '/products/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
-    | '/ai-products'
     | '/contact'
     | '/presentation'
+    | '/privacy'
     | '/services'
     | '/shop'
+    | '/sitemap.xml'
+    | '/terms'
     | '/api/lead'
     | '/api/live-token'
+    | '/products/velynora'
+    | '/products/velynora-lite'
+    | '/products/vocalis'
+    | '/products'
   id:
     | '__root__'
     | '/'
     | '/about'
-    | '/ai-products'
     | '/contact'
     | '/presentation'
+    | '/privacy'
     | '/services'
     | '/shop'
+    | '/sitemap.xml'
+    | '/terms'
     | '/api/lead'
     | '/api/live-token'
+    | '/products/velynora'
+    | '/products/velynora-lite'
+    | '/products/vocalis'
+    | '/products/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  AiProductsRoute: typeof AiProductsRoute
   ContactRoute: typeof ContactRoute
   PresentationRoute: typeof PresentationRoute
+  PrivacyRoute: typeof PrivacyRoute
   ServicesRoute: typeof ServicesRoute
   ShopRoute: typeof ShopRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TermsRoute: typeof TermsRoute
   ApiLeadRoute: typeof ApiLeadRoute
   ApiLiveTokenRoute: typeof ApiLiveTokenRoute
+  ProductsVelynoraRoute: typeof ProductsVelynoraRoute
+  ProductsVelynoraLiteRoute: typeof ProductsVelynoraLiteRoute
+  ProductsVocalisRoute: typeof ProductsVocalisRoute
+  ProductsIndexRoute: typeof ProductsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop': {
       id: '/shop'
       path: '/shop'
@@ -161,6 +253,13 @@ declare module '@tanstack/react-router' {
       path: '/services'
       fullPath: '/services'
       preLoaderRoute: typeof ServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/presentation': {
@@ -177,13 +276,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/ai-products': {
-      id: '/ai-products'
-      path: '/ai-products'
-      fullPath: '/ai-products'
-      preLoaderRoute: typeof AiProductsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -196,6 +288,34 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/': {
+      id: '/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/vocalis': {
+      id: '/products/vocalis'
+      path: '/products/vocalis'
+      fullPath: '/products/vocalis'
+      preLoaderRoute: typeof ProductsVocalisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/velynora-lite': {
+      id: '/products/velynora-lite'
+      path: '/products/velynora-lite'
+      fullPath: '/products/velynora-lite'
+      preLoaderRoute: typeof ProductsVelynoraLiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/velynora': {
+      id: '/products/velynora'
+      path: '/products/velynora'
+      fullPath: '/products/velynora'
+      preLoaderRoute: typeof ProductsVelynoraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/live-token': {
@@ -218,13 +338,19 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  AiProductsRoute: AiProductsRoute,
   ContactRoute: ContactRoute,
   PresentationRoute: PresentationRoute,
+  PrivacyRoute: PrivacyRoute,
   ServicesRoute: ServicesRoute,
   ShopRoute: ShopRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TermsRoute: TermsRoute,
   ApiLeadRoute: ApiLeadRoute,
   ApiLiveTokenRoute: ApiLiveTokenRoute,
+  ProductsVelynoraRoute: ProductsVelynoraRoute,
+  ProductsVelynoraLiteRoute: ProductsVelynoraLiteRoute,
+  ProductsVocalisRoute: ProductsVocalisRoute,
+  ProductsIndexRoute: ProductsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
