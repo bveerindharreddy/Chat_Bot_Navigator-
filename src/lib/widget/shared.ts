@@ -18,8 +18,26 @@ export const widgetInput = z.object({
 });
 export type WidgetInput = z.infer<typeof widgetInput>;
 
-/** What the sealed key contains. Only name/color/icon/greeting/position are ever sent to a browser, in clear. */
-export type WidgetPayload = { v: 1; n: string; c: string; i: WidgetIcon; g: string; pos: "right" | "left"; p: string; o: string[]; t: number };
+export type WidgetStatus = "active" | "revoked";
+
+/** Stored server-side in KV. The prompt never leaves the server (only the console API returns it, to the admin). */
+export type WidgetRecord = WidgetInput & { id: string; origins: string[]; status: WidgetStatus; created: number; updated: number };
+
+/** The console list row (kept in KV metadata, so listing needs no extra reads). */
+export type WidgetSummary = { id: string; name: string; host: string; color: string; icon: WidgetIcon; status: WidgetStatus; created: number; updated: number };
+
+export const summarize = (w: WidgetRecord): WidgetSummary => ({
+  id: w.id,
+  name: w.name,
+  host: new URL(w.url).hostname,
+  color: w.color,
+  icon: w.icon,
+  status: w.status,
+  created: w.created,
+  updated: w.updated,
+});
+
+export const WIDGET_ID = /^wid_[A-Za-z0-9]{20}$/;
 
 /** What the embedded widget is allowed to know about itself. */
 export type PublicWidgetConfig = { name: string; color: string; icon: WidgetIcon; greeting: string; position: "right" | "left" };

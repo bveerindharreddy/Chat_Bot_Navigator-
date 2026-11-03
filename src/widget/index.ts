@@ -1,6 +1,6 @@
 // Embeddable voice + chat companion, built to public/widget.js.
 // Install: <script src="https://<host>/widget.js" data-key="<widget key>" defer></script>
-// The key is an opaque, encrypted token. Prompt, tools and model settings stay on the server.
+// The key is just an id. Prompt, tools and model settings are stored and applied on the server.
 import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
 import { MicCapture, Player } from "@/lib/voice/audio";
 import type { PublicWidgetConfig } from "@/lib/widget/shared";

@@ -26,9 +26,10 @@ import { Route as ProductsVelynoraRouteImport } from './routes/products.velynora
 import { Route as ProductsVelynoraLiteRouteImport } from './routes/products.velynora-lite'
 import { Route as ProductsVocalisRouteImport } from './routes/products.vocalis'
 import { Route as ApiWidgetConfigRouteImport } from './routes/api.widget.config'
-import { Route as ApiWidgetCreateRouteImport } from './routes/api.widget.create'
 import { Route as ApiWidgetDraftPromptRouteImport } from './routes/api.widget.draft-prompt'
 import { Route as ApiWidgetTokenRouteImport } from './routes/api.widget.token'
+import { Route as ApiConsoleWidgetsIndexRouteImport } from './routes/api.console.widgets.index'
+import { Route as ApiConsoleWidgetsIdRouteImport } from './routes/api.console.widgets.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -115,11 +116,6 @@ const ApiWidgetConfigRoute = ApiWidgetConfigRouteImport.update({
   path: '/api/widget/config',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWidgetCreateRoute = ApiWidgetCreateRouteImport.update({
-  id: '/api/widget/create',
-  path: '/api/widget/create',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiWidgetDraftPromptRoute = ApiWidgetDraftPromptRouteImport.update({
   id: '/api/widget/draft-prompt',
   path: '/api/widget/draft-prompt',
@@ -128,6 +124,16 @@ const ApiWidgetDraftPromptRoute = ApiWidgetDraftPromptRouteImport.update({
 const ApiWidgetTokenRoute = ApiWidgetTokenRouteImport.update({
   id: '/api/widget/token',
   path: '/api/widget/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleWidgetsIndexRoute = ApiConsoleWidgetsIndexRouteImport.update({
+  id: '/api/console/widgets/',
+  path: '/api/console/widgets/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleWidgetsIdRoute = ApiConsoleWidgetsIdRouteImport.update({
+  id: '/api/console/widgets/$id',
+  path: '/api/console/widgets/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -149,9 +155,10 @@ export interface FileRoutesByFullPath {
   '/products/vocalis': typeof ProductsVocalisRoute
   '/products/': typeof ProductsIndexRoute
   '/api/widget/config': typeof ApiWidgetConfigRoute
-  '/api/widget/create': typeof ApiWidgetCreateRoute
   '/api/widget/draft-prompt': typeof ApiWidgetDraftPromptRoute
   '/api/widget/token': typeof ApiWidgetTokenRoute
+  '/api/console/widgets/$id': typeof ApiConsoleWidgetsIdRoute
+  '/api/console/widgets/': typeof ApiConsoleWidgetsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -171,9 +178,10 @@ export interface FileRoutesByTo {
   '/products/vocalis': typeof ProductsVocalisRoute
   '/products': typeof ProductsIndexRoute
   '/api/widget/config': typeof ApiWidgetConfigRoute
-  '/api/widget/create': typeof ApiWidgetCreateRoute
   '/api/widget/draft-prompt': typeof ApiWidgetDraftPromptRoute
   '/api/widget/token': typeof ApiWidgetTokenRoute
+  '/api/console/widgets/$id': typeof ApiConsoleWidgetsIdRoute
+  '/api/console/widgets': typeof ApiConsoleWidgetsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -194,9 +202,10 @@ export interface FileRoutesById {
   '/products/vocalis': typeof ProductsVocalisRoute
   '/products/': typeof ProductsIndexRoute
   '/api/widget/config': typeof ApiWidgetConfigRoute
-  '/api/widget/create': typeof ApiWidgetCreateRoute
   '/api/widget/draft-prompt': typeof ApiWidgetDraftPromptRoute
   '/api/widget/token': typeof ApiWidgetTokenRoute
+  '/api/console/widgets/$id': typeof ApiConsoleWidgetsIdRoute
+  '/api/console/widgets/': typeof ApiConsoleWidgetsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -218,9 +227,10 @@ export interface FileRouteTypes {
     | '/products/vocalis'
     | '/products/'
     | '/api/widget/config'
-    | '/api/widget/create'
     | '/api/widget/draft-prompt'
     | '/api/widget/token'
+    | '/api/console/widgets/$id'
+    | '/api/console/widgets/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -240,9 +250,10 @@ export interface FileRouteTypes {
     | '/products/vocalis'
     | '/products'
     | '/api/widget/config'
-    | '/api/widget/create'
     | '/api/widget/draft-prompt'
     | '/api/widget/token'
+    | '/api/console/widgets/$id'
+    | '/api/console/widgets'
   id:
     | '__root__'
     | '/'
@@ -262,9 +273,10 @@ export interface FileRouteTypes {
     | '/products/vocalis'
     | '/products/'
     | '/api/widget/config'
-    | '/api/widget/create'
     | '/api/widget/draft-prompt'
     | '/api/widget/token'
+    | '/api/console/widgets/$id'
+    | '/api/console/widgets/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -285,9 +297,10 @@ export interface RootRouteChildren {
   ProductsVocalisRoute: typeof ProductsVocalisRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
   ApiWidgetConfigRoute: typeof ApiWidgetConfigRoute
-  ApiWidgetCreateRoute: typeof ApiWidgetCreateRoute
   ApiWidgetDraftPromptRoute: typeof ApiWidgetDraftPromptRoute
   ApiWidgetTokenRoute: typeof ApiWidgetTokenRoute
+  ApiConsoleWidgetsIdRoute: typeof ApiConsoleWidgetsIdRoute
+  ApiConsoleWidgetsIndexRoute: typeof ApiConsoleWidgetsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -411,13 +424,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWidgetConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/widget/create': {
-      id: '/api/widget/create'
-      path: '/api/widget/create'
-      fullPath: '/api/widget/create'
-      preLoaderRoute: typeof ApiWidgetCreateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/widget/draft-prompt': {
       id: '/api/widget/draft-prompt'
       path: '/api/widget/draft-prompt'
@@ -430,6 +436,20 @@ declare module '@tanstack/react-router' {
       path: '/api/widget/token'
       fullPath: '/api/widget/token'
       preLoaderRoute: typeof ApiWidgetTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/console/widgets/': {
+      id: '/api/console/widgets/'
+      path: '/api/console/widgets'
+      fullPath: '/api/console/widgets/'
+      preLoaderRoute: typeof ApiConsoleWidgetsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/console/widgets/$id': {
+      id: '/api/console/widgets/$id'
+      path: '/api/console/widgets/$id'
+      fullPath: '/api/console/widgets/$id'
+      preLoaderRoute: typeof ApiConsoleWidgetsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -453,9 +473,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsVocalisRoute: ProductsVocalisRoute,
   ProductsIndexRoute: ProductsIndexRoute,
   ApiWidgetConfigRoute: ApiWidgetConfigRoute,
-  ApiWidgetCreateRoute: ApiWidgetCreateRoute,
   ApiWidgetDraftPromptRoute: ApiWidgetDraftPromptRoute,
   ApiWidgetTokenRoute: ApiWidgetTokenRoute,
+  ApiConsoleWidgetsIdRoute: ApiConsoleWidgetsIdRoute,
+  ApiConsoleWidgetsIndexRoute: ApiConsoleWidgetsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Bot, Check, Copy, Headset, Loader2, Lock, MessageCircle, Phone, Play, Send, Sparkles, Trash2, Wand2, X, type LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Ban, Bot, Check, Copy, Headset, Loader2, Lock, MessageCircle, Pencil, Phone, Play, Plus, RefreshCw, RotateCcw, Send, Sparkles, Trash2, Wand2, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { WIDGET_COLORS, widgetInput, type WidgetIcon, type WidgetInput } from "@/lib/widget/shared";
+import { WIDGET_COLORS, widgetInput, type WidgetIcon, type WidgetInput, type WidgetRecord, type WidgetStatus, type WidgetSummary } from "@/lib/widget/shared";
 import { onColor } from "@/widget/ui";
 import { cn } from "@/lib/utils";
 
@@ -22,49 +22,53 @@ const ICON_CHOICES: { id: WidgetIcon; label: string; Icon: LucideIcon }[] = [
 ];
 const ICON_OF = Object.fromEntries(ICON_CHOICES.map((c) => [c.id, c.Icon])) as Record<WidgetIcon, LucideIcon>;
 
-type Saved = { id: string; key: string; origins: string[]; created: number; form: WidgetInput };
 const EMPTY: WidgetInput = { name: "", url: "", extraDomains: [], prompt: "", greeting: "", icon: "chat", color: WIDGET_COLORS[0], position: "right" };
-const STORE = "tt-console-widgets";
 const PW = "tt-console-pw";
 
-const readSaved = (): Saved[] => { try { return JSON.parse(localStorage.getItem(STORE) ?? "[]"); } catch { return []; } };
-const writeSaved = (s: Saved[]) => { try { localStorage.setItem(STORE, JSON.stringify(s)); } catch { /* storage unavailable */ } };
-
-async function api<T>(path: string, pw: string, body: unknown): Promise<{ ok: boolean; status: number; data: T & { error?: string } }> {
-  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": pw }, body: JSON.stringify(body) });
+type ApiResult<T> = { ok: boolean; status: number; data: T & { error?: string } };
+async function api<T>(method: string, path: string, pw: string, body?: unknown): Promise<ApiResult<T>> {
+  const res = await fetch(path, {
+    method,
+    headers: { "Content-Type": "application/json", "x-admin-password": pw },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).catch(() => null);
+  if (!res) return { ok: false, status: 0, data: { error: "Network error, check your connection" } as T & { error?: string } };
   return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
 }
 
-const snippetFor = (key: string) => `<script src="${location.origin}/widget.js" data-key="${key}" defer></script>`;
+const snippetFor = (id: string) => `<script src="${location.origin}/widget.js" data-key="${id}" defer></script>`;
+const fmtDate = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 function Console() {
   const [pw, setPw] = useState<string | null>(null);
+  const [initial, setInitial] = useState<WidgetSummary[]>([]);
   useEffect(() => { try { setPw(sessionStorage.getItem(PW)); } catch { /* ignore */ } }, []);
+  const signOut = () => { try { sessionStorage.removeItem(PW); } catch { /* ignore */ } setPw(null); };
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
         <div className="container-site flex h-16 items-center justify-between">
           <a href="/" className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-primary" aria-hidden />TechThrust <span className="text-muted-foreground">Widget Console</span></a>
-          {pw && <Button size="sm" variant="heroOutline" onClick={() => { try { sessionStorage.removeItem(PW); } catch { /* ignore */ } setPw(null); }}>Sign out</Button>}
+          {pw && <Button size="sm" variant="heroOutline" onClick={signOut}>Sign out</Button>}
         </div>
       </header>
-      {pw ? <Dashboard pw={pw} onDenied={() => setPw(null)} /> : <Login onDone={setPw} />}
+      {pw ? <Dashboard pw={pw} initial={initial} onDenied={signOut} /> : <Login onDone={(p, list) => { setInitial(list); setPw(p); }} />}
     </div>
   );
 }
 
-function Login({ onDone }: { onDone: (pw: string) => void }) {
+function Login({ onDone }: { onDone: (pw: string, list: WidgetSummary[]) => void }) {
   const [v, setV] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setErr("");
-    const r = await api("/api/widget/create", v, {}); // 401 = wrong password, 400 = authorised (empty body is invalid)
+    const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets", v);
     setBusy(false);
-    if (r.status === 401 || r.status === 500) return setErr(r.data.error ?? "Sign-in failed");
+    if (!r.ok) return setErr(r.data.error ?? "Sign-in failed");
     try { sessionStorage.setItem(PW, v); } catch { /* ignore */ }
-    onDone(v);
+    onDone(v, r.data.widgets ?? []);
   };
   return (
     <form onSubmit={submit} className="container-site mx-auto max-w-md py-24">
@@ -79,65 +83,134 @@ function Login({ onDone }: { onDone: (pw: string) => void }) {
   );
 }
 
-function Dashboard({ pw, onDenied }: { pw: string; onDenied: () => void }) {
+function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSummary[]; onDenied: () => void }) {
   const [form, setForm] = useState<WidgetInput>(EMPTY);
   const [extra, setExtra] = useState("");
-  const [saved, setSaved] = useState<Saved[]>([]);
-  const [current, setCurrent] = useState<Saved | null>(null);
-  const [busy, setBusy] = useState<"" | "draft" | "create">("");
+  const [list, setList] = useState<WidgetSummary[]>(initial);
+  const [editing, setEditing] = useState<WidgetRecord | null>(null); // null = creating a new widget
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
-  const [copied, setCopied] = useState(false);
-  useEffect(() => setSaved(readSaved()), []);
+  const [notice, setNotice] = useState("");
+  const [copied, setCopied] = useState("");
 
-  const set = <K extends keyof WidgetInput>(k: K, v: WidgetInput[K]) => { setForm((f) => ({ ...f, [k]: v })); setCurrent(null); };
-  const fail = (r: { status: number; data: { error?: string } }) => { if (r.status === 401) onDenied(); setErr(r.data.error ?? "Something went wrong"); };
+  const refresh = async () => {
+    const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets", pw);
+    if (r.status === 401) return onDenied();
+    if (r.ok) setList(r.data.widgets ?? []);
+    else setErr(r.data.error ?? "Could not load widgets");
+  };
+  useEffect(() => { if (initial.length === 0) void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const set = <K extends keyof WidgetInput>(k: K, v: WidgetInput[K]) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true); setNotice(""); };
+  const fail = (r: ApiResult<unknown>) => { if (r.status === 401) onDenied(); setErr(r.data.error ?? "Something went wrong"); };
+  const upsert = (s: WidgetSummary) => setList((l) => [s, ...l.filter((x) => x.id !== s.id)]);
 
   const draft = async () => {
     setBusy("draft"); setErr("");
-    const r = await api<{ prompt?: string }>("/api/widget/draft-prompt", pw, { url: form.url, name: form.name });
+    const r = await api<{ prompt?: string }>("POST", "/api/widget/draft-prompt", pw, { url: form.url, name: form.name });
     setBusy("");
     if (!r.ok || !r.data.prompt) return fail(r);
     set("prompt", r.data.prompt);
   };
 
-  const create = async () => {
-    setErr("");
-    const payload = { ...form, extraDomains: extra.split(/[\s,]+/).filter(Boolean) };
-    const check = widgetInput.safeParse(payload);
-    if (!check.success) return setErr(check.error.issues[0]?.path.join(".") + ": " + check.error.issues[0]?.message);
-    setBusy("create");
-    const r = await api<{ key?: string; origins?: string[] }>("/api/widget/create", pw, check.data);
+  const save = async () => {
+    setErr(""); setNotice("");
+    const check = widgetInput.safeParse({ ...form, extraDomains: extra.split(/[\s,]+/).filter(Boolean) });
+    if (!check.success) return setErr(`${check.error.issues[0]?.path.join(".")}: ${check.error.issues[0]?.message}`);
+    setBusy("save");
+    const r = editing
+      ? await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("PUT", `/api/console/widgets/${editing.id}`, pw, check.data)
+      : await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("POST", "/api/console/widgets", pw, check.data);
     setBusy("");
-    if (!r.ok || !r.data.key) return fail(r);
-    const item: Saved = { id: crypto.randomUUID(), key: r.data.key, origins: r.data.origins ?? [], created: Date.now(), form: check.data };
-    const next = [item, ...saved].slice(0, 50);
-    setSaved(next); writeSaved(next); setCurrent(item);
+    if (!r.ok || !r.data.widget || !r.data.summary) return fail(r);
+    setEditing(r.data.widget); upsert(r.data.summary); setDirty(false);
+    setNotice(editing ? "Changes saved. Live sites pick them up on their next page load; the embed code stays the same." : "Widget created. Copy the embed code below.");
   };
 
-  const copy = async (text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  const open = async (id: string) => {
+    if (dirty && !confirm("Discard unsaved changes?")) return;
+    setErr(""); setNotice(""); setBusy(`open:${id}`);
+    const r = await api<{ widget?: WidgetRecord }>("GET", `/api/console/widgets/${id}`, pw);
+    setBusy("");
+    if (!r.ok || !r.data.widget) return fail(r);
+    const w = r.data.widget;
+    setEditing(w); setDirty(false);
+    setForm({ name: w.name, url: w.url, extraDomains: w.extraDomains, prompt: w.prompt, greeting: w.greeting, icon: w.icon, color: w.color, position: w.position });
+    setExtra(w.extraDomains.join(", "));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-  const tryLive = (key: string) => {
+  const startNew = () => {
+    if (dirty && !confirm("Discard unsaved changes?")) return;
+    setEditing(null); setForm(EMPTY); setExtra(""); setDirty(false); setErr(""); setNotice("");
+  };
+
+  const setStatus = async (s: WidgetSummary, status: WidgetStatus) => {
+    if (status === "revoked" && !confirm(`Revoke "${s.name}"? It stops working on ${s.host} right away. You can restore it later.`)) return;
+    setErr(""); setBusy(`status:${s.id}`);
+    const r = await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("PATCH", `/api/console/widgets/${s.id}`, pw, { status });
+    setBusy("");
+    if (!r.ok || !r.data.summary) return fail(r);
+    upsert(r.data.summary);
+    if (status === "revoked") stopLive(s.id);
+    if (editing?.id === s.id && r.data.widget) setEditing({ ...editing, status: r.data.widget.status, updated: r.data.widget.updated });
+  };
+
+  const remove = async (s: WidgetSummary) => {
+    if (!confirm(`Delete "${s.name}" permanently? Its embed code stops working and this cannot be undone.`)) return;
+    setErr(""); setBusy(`delete:${s.id}`);
+    const r = await api("DELETE", `/api/console/widgets/${s.id}`, pw);
+    setBusy("");
+    if (!r.ok) return fail(r);
+    setList((l) => l.filter((x) => x.id !== s.id));
+    stopLive(s.id);
+    if (editing?.id === s.id) { setEditing(null); setForm(EMPTY); setExtra(""); setDirty(false); }
+  };
+
+  const copy = async (id: string) => { await navigator.clipboard.writeText(snippetFor(id)).catch(() => {}); setCopied(id); setTimeout(() => setCopied(""), 1500); };
+
+  const [liveId, setLiveId] = useState("");
+  /** Removes the widget started with "Try it live" (a revoked or deleted widget should vanish here too). */
+  const stopLive = (id?: string) => {
+    if (id && id !== liveId) return;
+    document.getElementById("techthrust-widget")?.remove();
+    setLiveId("");
+  };
+
+  const tryLive = (id: string) => {
+    setLiveId(id);
     document.getElementById("techthrust-widget")?.remove();
     try { sessionStorage.removeItem("techthrust-widget"); } catch { /* ignore */ }
     const s = document.createElement("script");
     s.src = `/widget.js?t=${Date.now()}`;
-    s.dataset.key = key;
+    s.dataset.key = id;
     document.body.appendChild(s);
   };
 
-  const edit = (s: Saved) => { setForm(s.form); setExtra(s.form.extraDomains.join(", ")); setCurrent(s); setErr(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const remove = (id: string) => { const next = saved.filter((s) => s.id !== id); setSaved(next); writeSaved(next); if (current?.id === id) setCurrent(null); };
-
-  const snippet = current ? snippetFor(current.key) : "";
   const label = "mb-2 block text-sm font-medium";
+  const revoked = editing?.status === "revoked";
 
   return (
     <div className="container-site grid items-start gap-8 py-10 lg:grid-cols-[1fr_24rem]">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold">Create a widget</h1>
-          <p className="mt-2 text-muted-foreground">A chat and call companion for a customer's website. You give the developer only the embed code: the prompt and logic stay encrypted on our server.</p>
+      <div className="min-w-0 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold">{editing ? `Edit “${editing.name}”` : "Create a widget"}</h1>
+            <p className="mt-2 text-muted-foreground">
+              {editing
+                ? "Changes apply to the live widget without a new embed code."
+                : "A chat and call companion for a customer's website. You give the developer only the embed code: the prompt and logic stay on our server."}
+            </p>
+          </div>
+          {editing && <Button variant="heroOutline" onClick={startNew}><Plus className="size-4" />New widget</Button>}
         </div>
+
+        {revoked && (
+          <p role="status" className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <Ban className="size-4 shrink-0" aria-hidden />This widget is revoked and does not load on any site. Restore it from the list to switch it back on.
+          </p>
+        )}
 
         <section className="card-premium space-y-5 p-6">
           <h2 className="text-lg font-semibold">1. Basics</h2>
@@ -152,7 +225,7 @@ function Dashboard({ pw, onDenied }: { pw: string; onDenied: () => void }) {
           </div>
           <div>
             <label className={label} htmlFor="w-extra">Extra allowed domains <span className="font-normal text-muted-foreground">(optional, comma separated)</span></label>
-            <Input id="w-extra" value={extra} onChange={(e) => { setExtra(e.target.value); setCurrent(null); }} placeholder="shop.customer.com, staging.customer.com" />
+            <Input id="w-extra" value={extra} onChange={(e) => { setExtra(e.target.value); setDirty(true); }} placeholder="shop.customer.com, staging.customer.com" />
           </div>
         </section>
 
@@ -206,43 +279,65 @@ function Dashboard({ pw, onDenied }: { pw: string; onDenied: () => void }) {
         </section>
 
         {err && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{err}</p>}
-        <Button variant="hero" size="lg" onClick={create} disabled={busy !== ""}>{busy === "create" && <Loader2 className="size-4 animate-spin" />}Generate widget</Button>
+        {notice && <p role="status" className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm">{notice}</p>}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="hero" size="lg" onClick={save} disabled={busy !== "" || (!!editing && !dirty)}>
+            {busy === "save" && <Loader2 className="size-4 animate-spin" />}{editing ? "Save changes" : "Generate widget"}
+          </Button>
+          {editing && dirty && <span className="text-sm text-muted-foreground">Unsaved changes</span>}
+        </div>
 
-        {current && (
+        {editing && (
           <section className="card-premium space-y-4 p-6" aria-live="polite">
-            <h2 className="text-lg font-semibold">Embed code for “{current.form.name}”</h2>
-            <p className="text-sm text-muted-foreground">Send this one line to the customer's developer. It goes right before <code>&lt;/body&gt;</code>. Works only on: {current.origins.join(", ")}.</p>
-            <pre className="overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs"><code className="break-all whitespace-pre-wrap">{snippet}</code></pre>
+            <h2 className="text-lg font-semibold">Embed code for “{editing.name}”</h2>
+            <p className="text-sm text-muted-foreground">Send this one line to the customer's developer. It goes right before <code>&lt;/body&gt;</code>. It never changes when you edit the widget. Works only on: {editing.origins.join(", ")}.</p>
+            <pre className="overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs"><code className="whitespace-pre-wrap break-all">{snippetFor(editing.id)}</code></pre>
             <div className="flex flex-wrap gap-3">
-              <Button variant="hero" onClick={() => copy(snippet)}>{copied ? <Check className="size-4" /> : <Copy className="size-4" />}{copied ? "Copied" : "Copy code"}</Button>
-              <Button variant="heroOutline" onClick={() => tryLive(current.key)}><Play className="size-4" />Try it live on this page</Button>
+              <Button variant="hero" onClick={() => copy(editing.id)}>{copied === editing.id ? <Check className="size-4" /> : <Copy className="size-4" />}{copied === editing.id ? "Copied" : "Copy code"}</Button>
+              <Button variant="heroOutline" onClick={() => tryLive(editing.id)} disabled={revoked || dirty} title={dirty ? "Save first" : undefined}><Play className="size-4" />Try it live on this page</Button>
             </div>
           </section>
         )}
       </div>
 
-      <aside className="space-y-6 lg:sticky lg:top-6">
+      <aside className="min-w-0 space-y-6 lg:sticky lg:top-6">
         <Preview form={form} />
         <div className="card-premium p-5">
-          <h2 className="font-semibold">Your widgets</h2>
-          {saved.length === 0 && <p className="mt-2 text-sm text-muted-foreground">Nothing yet. Widgets you create are listed here (stored in this browser).</p>}
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold">Your widgets <span className="font-normal text-muted-foreground">({list.length})</span></h2>
+            <Button size="icon" variant="ghost" aria-label="Reload list" onClick={() => void refresh()}><RefreshCw className="size-4" /></Button>
+          </div>
+          {list.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No widgets yet. Create one with the form.</p>}
           <ul className="mt-3 space-y-2">
-            {saved.map((s) => {
-              const Icon = ICON_OF[s.form.icon] ?? MessageCircle;
+            {list.map((s) => {
+              const Icon = ICON_OF[s.icon] ?? MessageCircle;
+              const off = s.status === "revoked";
+              const rowBusy = busy.endsWith(`:${s.id}`);
               return (
-                <li key={s.id} className={cn("flex items-center gap-3 rounded-xl border p-2.5", current?.id === s.id ? "border-primary" : "border-border")}>
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full" style={{ background: s.form.color, color: onColor(s.form.color) }}><Icon className="size-4" aria-hidden /></span>
-                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => edit(s)}>
-                    <span className="block truncate text-sm font-medium">{s.form.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{new URL(s.form.url).hostname}</span>
-                  </button>
-                  <Button size="icon" variant="ghost" aria-label={`Copy embed code for ${s.form.name}`} onClick={() => copy(snippetFor(s.key))}><Copy className="size-4" /></Button>
-                  <Button size="icon" variant="ghost" aria-label={`Remove ${s.form.name} from this list`} onClick={() => remove(s.id)}><Trash2 className="size-4" /></Button>
+                <li key={s.id} className={cn("rounded-xl border p-2.5", editing?.id === s.id ? "border-primary" : "border-border", off && "opacity-70")}>
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full" style={{ background: s.color, color: onColor(s.color) }}><Icon className="size-4" aria-hidden /></span>
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => void open(s.id)} title="Edit">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{s.name}</span>
+                        <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase", off ? "bg-destructive/15 text-destructive" : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400")}>{off ? "Revoked" : "Active"}</span>
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">{s.host} · {fmtDate(s.updated)}</span>
+                    </button>
+                    {rowBusy && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Working" />}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1 pl-12">
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => void open(s.id)}><Pencil className="size-3.5" />Edit</Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => void copy(s.id)}>{copied === s.id ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}Code</Button>
+                    {off
+                      ? <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-emerald-600 hover:text-emerald-600 dark:text-emerald-400" disabled={rowBusy} onClick={() => void setStatus(s, "active")}><RotateCcw className="size-3.5" />Restore</Button>
+                      : <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-destructive hover:text-destructive" disabled={rowBusy} onClick={() => void setStatus(s, "revoked")}><Ban className="size-3.5" />Revoke</Button>}
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-destructive hover:text-destructive" disabled={rowBusy} onClick={() => void remove(s)} aria-label={`Delete ${s.name}`}><Trash2 className="size-3.5" />Delete</Button>
+                  </div>
                 </li>
               );
             })}
           </ul>
-          {saved.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Selecting a widget loads it into the form. Changing it and generating again issues a new embed code.</p>}
         </div>
       </aside>
     </div>

@@ -2,9 +2,9 @@
 import { EndSensitivity, GoogleGenAI, Modality, StartSensitivity } from "@google/genai";
 import { LIVE_MODEL } from "@/lib/voice/agent-config";
 import { buildWidgetPrompt, WIDGET_TOOLS } from "./prompt";
-import type { WidgetPayload } from "./shared";
+import type { WidgetRecord } from "./shared";
 
-export async function mintWidgetToken(apiKey: string, w: WidgetPayload) {
+export async function mintWidgetToken(apiKey: string, w: WidgetRecord) {
   const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion: "v1alpha" } });
   const now = Date.now();
   const token = await ai.authTokens.create({
@@ -16,7 +16,7 @@ export async function mintWidgetToken(apiKey: string, w: WidgetPayload) {
         model: LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: buildWidgetPrompt(w.n, w.p),
+          systemInstruction: buildWidgetPrompt(w.name, w.prompt),
           tools: [{ functionDeclarations: WIDGET_TOOLS }],
           realtimeInputConfig: {
             automaticActivityDetection: {

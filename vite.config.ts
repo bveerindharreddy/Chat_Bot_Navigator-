@@ -12,9 +12,20 @@ for (const [k, v] of Object.entries(loadEnv("development", process.cwd(), ""))) 
   if (!k.startsWith("VITE_")) process.env[k] ??= v;
 }
 
+// Cloudflare KV namespace that stores the widgets made in /console. Create it once with
+//   npx wrangler kv namespace create WIDGETS
+// and set its id in WIDGETS_KV_ID (build env / .env) or paste it here. Without it, /console cannot save in production.
+const WIDGETS_KV_ID = process.env.WIDGETS_KV_ID || "";
+
 export default defineConfig({
-  // Must match the Worker name in Cloudflare Workers Builds.
-  nitro: { cloudflare: { wrangler: { name: "tachthrust-agent" } } },
+  nitro: {
+    cloudflare: {
+      wrangler: {
+        name: "tachthrust-agent", // Must match the Worker name in Cloudflare Workers Builds.
+        ...(WIDGETS_KV_ID ? { kv_namespaces: [{ binding: "WIDGETS", id: WIDGETS_KV_ID }] } : {}),
+      },
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
