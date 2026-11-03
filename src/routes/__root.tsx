@@ -106,17 +106,18 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const bare = pathname.startsWith("/presentation");
+  const admin = pathname.startsWith("/console"); // standalone product console: no site chrome, no site assistant
   return (
     <QueryClientProvider client={queryClient}>
       <DemoProvider>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground">Skip to content</a>
-        {!bare && <Header />}
+        {!bare && !admin && <Header />}
         <main id="main">
           <Outlet />
         </main>
-        {!bare && <Footer />}
-        <ConsentBanner />
-        <VoiceAgent />
+        {!bare && !admin && <Footer />}
+        {!admin && <ConsentBanner />}
+        {!admin && <VoiceAgent />}
       </DemoProvider>
     </QueryClientProvider>
   );

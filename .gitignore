@@ -36,3 +36,4 @@ dist-ssr
 
 # built by `npm run build:widget` (Shopify embed script)
 public/shopify-agent.js
+public/widget.js
