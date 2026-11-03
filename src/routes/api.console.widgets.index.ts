@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/widget/admin";
 import { listWidgets, newWidgetId, putWidget } from "@/lib/widget/store";
 import { allowedOrigins, summarize, widgetInput, type WidgetRecord } from "@/lib/widget/shared";
 import { serverError } from "@/lib/widget/http";
+import { addCredits, getRates, usageConfigured } from "@/lib/widget/usage";
 
 // Admin only. GET lists all widgets; POST creates one and returns its permanent embed id.
 export const Route = createFileRoute("/api/console/widgets/")({
@@ -26,6 +27,8 @@ export const Route = createFileRoute("/api/console/widgets/")({
         const w: WidgetRecord = { ...parsed.data, id: newWidgetId(), origins: allowedOrigins(parsed.data.url, parsed.data.extraDomains), status: "active", created: now, updated: now };
         try {
           await putWidget(w);
+          const { startingCredits } = await getRates();
+          if (startingCredits > 0 && (await usageConfigured())) await addCredits(w.id, startingCredits, "Starting credits");
           return Response.json({ widget: w, summary: summarize(w) }, { status: 201 });
         } catch (e) {
           return serverError(e, "create widget");

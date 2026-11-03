@@ -25,9 +25,14 @@ import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as ProductsVelynoraRouteImport } from './routes/products.velynora'
 import { Route as ProductsVelynoraLiteRouteImport } from './routes/products.velynora-lite'
 import { Route as ProductsVocalisRouteImport } from './routes/products.vocalis'
+import { Route as ApiConsoleRatesRouteImport } from './routes/api.console.rates'
+import { Route as ApiConsoleStatementRouteImport } from './routes/api.console.statement'
 import { Route as ApiWidgetConfigRouteImport } from './routes/api.widget.config'
 import { Route as ApiWidgetDraftPromptRouteImport } from './routes/api.widget.draft-prompt'
+import { Route as ApiWidgetEventRouteImport } from './routes/api.widget.event'
 import { Route as ApiWidgetTokenRouteImport } from './routes/api.widget.token'
+import { Route as ApiConsoleUsageIndexRouteImport } from './routes/api.console.usage.index'
+import { Route as ApiConsoleUsageIdRouteImport } from './routes/api.console.usage.$id'
 import { Route as ApiConsoleWidgetsIndexRouteImport } from './routes/api.console.widgets.index'
 import { Route as ApiConsoleWidgetsIdRouteImport } from './routes/api.console.widgets.$id'
 
@@ -111,6 +116,16 @@ const ProductsVocalisRoute = ProductsVocalisRouteImport.update({
   path: '/products/vocalis',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConsoleRatesRoute = ApiConsoleRatesRouteImport.update({
+  id: '/api/console/rates',
+  path: '/api/console/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleStatementRoute = ApiConsoleStatementRouteImport.update({
+  id: '/api/console/statement',
+  path: '/api/console/statement',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWidgetConfigRoute = ApiWidgetConfigRouteImport.update({
   id: '/api/widget/config',
   path: '/api/widget/config',
@@ -121,9 +136,24 @@ const ApiWidgetDraftPromptRoute = ApiWidgetDraftPromptRouteImport.update({
   path: '/api/widget/draft-prompt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWidgetEventRoute = ApiWidgetEventRouteImport.update({
+  id: '/api/widget/event',
+  path: '/api/widget/event',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWidgetTokenRoute = ApiWidgetTokenRouteImport.update({
   id: '/api/widget/token',
   path: '/api/widget/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleUsageIndexRoute = ApiConsoleUsageIndexRouteImport.update({
+  id: '/api/console/usage/',
+  path: '/api/console/usage/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleUsageIdRoute = ApiConsoleUsageIdRouteImport.update({
+  id: '/api/console/usage/$id',
+  path: '/api/console/usage/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiConsoleWidgetsIndexRoute = ApiConsoleWidgetsIndexRouteImport.update({
@@ -154,10 +184,15 @@ export interface FileRoutesByFullPath {
   '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
   '/products/vocalis': typeof ProductsVocalisRoute
   '/products/': typeof ProductsIndexRoute
+  '/api/console/rates': typeof ApiConsoleRatesRoute
+  '/api/console/statement': typeof ApiConsoleStatementRoute
   '/api/widget/config': typeof ApiWidgetConfigRoute
   '/api/widget/draft-prompt': typeof ApiWidgetDraftPromptRoute
+  '/api/widget/event': typeof ApiWidgetEventRoute
   '/api/widget/token': typeof ApiWidgetTokenRoute
+  '/api/console/usage/$id': typeof ApiConsoleUsageIdRoute
   '/api/console/widgets/$id': typeof ApiConsoleWidgetsIdRoute
+  '/api/console/usage/': typeof ApiConsoleUsageIndexRoute
   '/api/console/widgets/': typeof ApiConsoleWidgetsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -177,10 +212,15 @@ export interface FileRoutesByTo {
   '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
   '/products/vocalis': typeof ProductsVocalisRoute
   '/products': typeof ProductsIndexRoute
+  '/api/console/rates': typeof ApiConsoleRatesRoute
+  '/api/console/statement': typeof ApiConsoleStatementRoute
   '/api/widget/config': typeof ApiWidgetConfigRoute
   '/api/widget/draft-prompt': typeof ApiWidgetDraftPromptRoute
+  '/api/widget/event': typeof ApiWidgetEventRoute
   '/api/widget/token': typeof ApiWidgetTokenRoute
+  '/api/console/usage/$id': typeof ApiConsoleUsageIdRoute
   '/api/console/widgets/$id': typeof ApiConsoleWidgetsIdRoute
+  '/api/console/usage': typeof ApiConsoleUsageIndexRoute
   '/api/console/widgets': typeof ApiConsoleWidgetsIndexRoute
 }
 export interface FileRoutesById {
@@ -201,10 +241,15 @@ export interface FileRoutesById {
   '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
   '/products/vocalis': typeof ProductsVocalisRoute
   '/products/': typeof ProductsIndexRoute
+  '/api/console/rates': typeof ApiConsoleRatesRoute
+  '/api/console/statement': typeof ApiConsoleStatementRoute
   '/api/widget/config': typeof ApiWidgetConfigRoute
   '/api/widget/draft-prompt': typeof ApiWidgetDraftPromptRoute
+  '/api/widget/event': typeof ApiWidgetEventRoute
   '/api/widget/token': typeof ApiWidgetTokenRoute
+  '/api/console/usage/$id': typeof ApiConsoleUsageIdRoute
   '/api/console/widgets/$id': typeof ApiConsoleWidgetsIdRoute
+  '/api/console/usage/': typeof ApiConsoleUsageIndexRoute
   '/api/console/widgets/': typeof ApiConsoleWidgetsIndexRoute
 }
 export interface FileRouteTypes {
@@ -226,10 +271,15 @@ export interface FileRouteTypes {
     | '/products/velynora-lite'
     | '/products/vocalis'
     | '/products/'
+    | '/api/console/rates'
+    | '/api/console/statement'
     | '/api/widget/config'
     | '/api/widget/draft-prompt'
+    | '/api/widget/event'
     | '/api/widget/token'
+    | '/api/console/usage/$id'
     | '/api/console/widgets/$id'
+    | '/api/console/usage/'
     | '/api/console/widgets/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -249,10 +299,15 @@ export interface FileRouteTypes {
     | '/products/velynora-lite'
     | '/products/vocalis'
     | '/products'
+    | '/api/console/rates'
+    | '/api/console/statement'
     | '/api/widget/config'
     | '/api/widget/draft-prompt'
+    | '/api/widget/event'
     | '/api/widget/token'
+    | '/api/console/usage/$id'
     | '/api/console/widgets/$id'
+    | '/api/console/usage'
     | '/api/console/widgets'
   id:
     | '__root__'
@@ -272,10 +327,15 @@ export interface FileRouteTypes {
     | '/products/velynora-lite'
     | '/products/vocalis'
     | '/products/'
+    | '/api/console/rates'
+    | '/api/console/statement'
     | '/api/widget/config'
     | '/api/widget/draft-prompt'
+    | '/api/widget/event'
     | '/api/widget/token'
+    | '/api/console/usage/$id'
     | '/api/console/widgets/$id'
+    | '/api/console/usage/'
     | '/api/console/widgets/'
   fileRoutesById: FileRoutesById
 }
@@ -296,10 +356,15 @@ export interface RootRouteChildren {
   ProductsVelynoraLiteRoute: typeof ProductsVelynoraLiteRoute
   ProductsVocalisRoute: typeof ProductsVocalisRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
+  ApiConsoleRatesRoute: typeof ApiConsoleRatesRoute
+  ApiConsoleStatementRoute: typeof ApiConsoleStatementRoute
   ApiWidgetConfigRoute: typeof ApiWidgetConfigRoute
   ApiWidgetDraftPromptRoute: typeof ApiWidgetDraftPromptRoute
+  ApiWidgetEventRoute: typeof ApiWidgetEventRoute
   ApiWidgetTokenRoute: typeof ApiWidgetTokenRoute
+  ApiConsoleUsageIdRoute: typeof ApiConsoleUsageIdRoute
   ApiConsoleWidgetsIdRoute: typeof ApiConsoleWidgetsIdRoute
+  ApiConsoleUsageIndexRoute: typeof ApiConsoleUsageIndexRoute
   ApiConsoleWidgetsIndexRoute: typeof ApiConsoleWidgetsIndexRoute
 }
 
@@ -417,6 +482,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsVocalisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/console/rates': {
+      id: '/api/console/rates'
+      path: '/api/console/rates'
+      fullPath: '/api/console/rates'
+      preLoaderRoute: typeof ApiConsoleRatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/console/statement': {
+      id: '/api/console/statement'
+      path: '/api/console/statement'
+      fullPath: '/api/console/statement'
+      preLoaderRoute: typeof ApiConsoleStatementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/widget/config': {
       id: '/api/widget/config'
       path: '/api/widget/config'
@@ -431,11 +510,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWidgetDraftPromptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/widget/event': {
+      id: '/api/widget/event'
+      path: '/api/widget/event'
+      fullPath: '/api/widget/event'
+      preLoaderRoute: typeof ApiWidgetEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/widget/token': {
       id: '/api/widget/token'
       path: '/api/widget/token'
       fullPath: '/api/widget/token'
       preLoaderRoute: typeof ApiWidgetTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/console/usage/': {
+      id: '/api/console/usage/'
+      path: '/api/console/usage'
+      fullPath: '/api/console/usage/'
+      preLoaderRoute: typeof ApiConsoleUsageIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/console/usage/$id': {
+      id: '/api/console/usage/$id'
+      path: '/api/console/usage/$id'
+      fullPath: '/api/console/usage/$id'
+      preLoaderRoute: typeof ApiConsoleUsageIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/console/widgets/': {
@@ -472,10 +572,15 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsVelynoraLiteRoute: ProductsVelynoraLiteRoute,
   ProductsVocalisRoute: ProductsVocalisRoute,
   ProductsIndexRoute: ProductsIndexRoute,
+  ApiConsoleRatesRoute: ApiConsoleRatesRoute,
+  ApiConsoleStatementRoute: ApiConsoleStatementRoute,
   ApiWidgetConfigRoute: ApiWidgetConfigRoute,
   ApiWidgetDraftPromptRoute: ApiWidgetDraftPromptRoute,
+  ApiWidgetEventRoute: ApiWidgetEventRoute,
   ApiWidgetTokenRoute: ApiWidgetTokenRoute,
+  ApiConsoleUsageIdRoute: ApiConsoleUsageIdRoute,
   ApiConsoleWidgetsIdRoute: ApiConsoleWidgetsIdRoute,
+  ApiConsoleUsageIndexRoute: ApiConsoleUsageIndexRoute,
   ApiConsoleWidgetsIndexRoute: ApiConsoleWidgetsIndexRoute,
 }
 export const routeTree = rootRouteImport

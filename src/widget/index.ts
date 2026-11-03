@@ -26,6 +26,14 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const post = (path: string, body: unknown) =>
   fetch(`${API}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
+/** Usage beacon (open / call_start / call_end). text/plain keeps it a simple request that survives page unload. */
+function beacon(type: "open" | "call_start" | "call_end", extra: Record<string, unknown> = {}) {
+  const data = JSON.stringify({ key: WIDGET_KEY, type, ...extra });
+  const url = `${API}/api/widget/event`;
+  try { if (navigator.sendBeacon?.(url, new Blob([data], { type: "text/plain" }))) return; } catch { /* fall back to fetch */ }
+  fetch(url, { method: "POST", body: data, keepalive: true, headers: { "Content-Type": "text/plain" } }).catch(() => {});
+}
+
 class Widget {
   private host = document.createElement("div");
   private root = this.host.attachShadow({ mode: "open" });
@@ -54,7 +62,7 @@ class Widget {
     document.body.appendChild(this.host);
     this.render();
     // Multi-page sites reload the script on every page change, so a live chat or call reconnects on the next page.
-    addEventListener("pagehide", () => this.persistLive());
+    addEventListener("pagehide", () => { this.endCallSegment(); this.persistLive(); });
     const r = this.saved.resume;
     if (r && Date.now() - r.ts < RESUME_WINDOW_MS) void this.connect(r.voice, { resumed: true, speak: r.agentNav });
   }
@@ -88,7 +96,7 @@ class Widget {
     this.reconnecting = resumed;
     this.error = ""; this.status = "connecting"; this.render();
     try {
-      const res = await post("/api/widget/token", { key: WIDGET_KEY });
+      const res = await post("/api/widget/token", { key: WIDGET_KEY, mode: withMic ? "voice" : "chat", resumed });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Could not start the assistant");
       const ai = new GoogleGenAI({ apiKey: body.token, httpOptions: { apiVersion: "v1alpha" } });
@@ -136,7 +144,14 @@ class Widget {
     this.needsTap = !(this.player?.running && this.mic.running);
   }
 
+  /** Reports the seconds of voice on this page (billing). Called when a call ends or the page unloads mid-call. */
+  private endCallSegment() {
+    if (this.voiceOn && this.secs > 0) beacon("call_end", { secs: this.secs });
+    this.secs = 0;
+  }
+
   private teardownAudio() {
+    this.endCallSegment();
     clearInterval(this.timer);
     this.mic?.stop(); this.mic = null;
     this.player?.close(); this.player = null;
@@ -172,7 +187,7 @@ class Widget {
     if (this.status === "connecting") return;
     if (this.voiceOn) { this.hangup(); return; }
     if (!this.session) { await this.connect(true); return; }
-    try { await this.startMic(); this.render(); } catch { this.error = "Microphone access was blocked."; this.render(); }
+    try { await this.startMic(); beacon("call_start"); this.render(); } catch { this.error = "Microphone access was blocked."; this.render(); }
   }
 
   private stopTalking() {
@@ -245,7 +260,7 @@ class Widget {
 
   private bind() {
     const on = (sel: string, fn: () => void) => this.root.querySelectorAll(`[data-a="${sel}"]`).forEach((el) => el.addEventListener("click", fn));
-    on("open", () => { this.open = true; this.persistLive(); this.render(); });
+    on("open", () => { this.open = true; beacon("open"); this.persistLive(); this.render(); });
     on("close", () => { this.hangup(); this.open = false; this.lines = []; this.persist(); this.render(); });
     on("voice", () => { void this.toggleVoice(); });
     on("mute", () => { this.muted = !this.muted; this.render(); });

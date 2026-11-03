@@ -1,4 +1,5 @@
 import { StorageNotConfigured } from "./store";
+import { UsageNotConfigured } from "./usage";
 
 export const widgetCors = (origin: string) => ({
   "Access-Control-Allow-Origin": origin || "null",
@@ -16,7 +17,13 @@ export function widgetOriginAllowed(request: Request, origins: string[]): boolea
 
 /** Uniform JSON error for console API routes. */
 export function serverError(e: unknown, where: string): Response {
-  if (e instanceof StorageNotConfigured) return Response.json({ error: e.message }, { status: 503 });
+  if (e instanceof StorageNotConfigured || e instanceof UsageNotConfigured) return Response.json({ error: e.message }, { status: 503 });
   console.error(where, e);
   return Response.json({ error: "Something went wrong on the server" }, { status: 500 });
 }
+
+/** Clamp a ?days= query to the periods the console offers. */
+export const daysParam = (url: string) => {
+  const d = Number(new URL(url).searchParams.get("days"));
+  return [7, 30, 90].includes(d) ? d : 30;
+};

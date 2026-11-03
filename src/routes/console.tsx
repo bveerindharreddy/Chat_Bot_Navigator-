@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Ban, Bot, Check, Copy, Headset, Loader2, Lock, MessageCircle, Pencil, Phone, Play, Plus, RefreshCw, RotateCcw, Send, Sparkles, Trash2, Wand2, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { WIDGET_COLORS, widgetInput, type WidgetIcon, type WidgetInput, type WidgetRecord, type WidgetStatus, type WidgetSummary } from "@/lib/widget/shared";
 import { onColor } from "@/widget/ui";
 import { cn } from "@/lib/utils";
+import { fmtCredits, RatesCard, UsagePanel, type ApiFn, type Period, type WidgetUsage } from "@/components/console/usage";
+import type { Rates } from "@/lib/widget/usage";
 
 export const Route = createFileRoute("/console")({
   head: () => ({ meta: [{ title: "Widget Console — TechThrust" }, { name: "robots", content: "noindex,nofollow" }] }),
@@ -93,12 +95,25 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState("");
+  const [usage, setUsage] = useState<Record<string, WidgetUsage>>({});
+  const [usageOn, setUsageOn] = useState(false);
+  const [rates, setRates] = useState<Rates | null>(null);
+  const [period, setPeriod] = useState<Period>(30);
+  const call: ApiFn = useCallback((method, path, body) => api(method, path, pw, body), [pw]);
+
+  const loadUsage = useCallback(async () => {
+    const r = await call<{ configured?: boolean; rates?: Rates; widgets?: Record<string, WidgetUsage> }>("GET", `/api/console/usage?days=${period}`);
+    if (!r.ok) return;
+    setUsageOn(!!r.data.configured); setRates(r.data.rates ?? null); setUsage(r.data.widgets ?? {});
+  }, [call, period]);
+  useEffect(() => { void loadUsage(); }, [loadUsage]);
 
   const refresh = async () => {
     const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets", pw);
     if (r.status === 401) return onDenied();
     if (r.ok) setList(r.data.widgets ?? []);
     else setErr(r.data.error ?? "Could not load widgets");
+    void loadUsage();
   };
   useEffect(() => { if (initial.length === 0) void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -125,6 +140,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
     setBusy("");
     if (!r.ok || !r.data.widget || !r.data.summary) return fail(r);
     setEditing(r.data.widget); upsert(r.data.summary); setDirty(false);
+    if (!editing) void loadUsage(); // new widget: starting credits
     setNotice(editing ? "Changes saved. Live sites pick them up on their next page load; the embed code stays the same." : "Widget created. Copy the embed code below.");
   };
 
@@ -298,10 +314,16 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
             </div>
           </section>
         )}
+
+        {editing && (
+          <UsagePanel api={call} widgetId={editing.id} period={period} onPeriod={setPeriod}
+            onBalance={(b) => setUsage((u) => ({ ...u, [editing.id]: { ...(u[editing.id] ?? { loads: 0, opens: 0, chats: 0, calls: 0, callSecs: 0, used: 0 }), balance: b } }))} />
+        )}
       </div>
 
       <aside className="min-w-0 space-y-6 lg:sticky lg:top-6">
         <Preview form={form} />
+        {usageOn && <RatesCard api={call} rates={rates} onSaved={setRates} />}
         <div className="card-premium p-5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold">Your widgets <span className="font-normal text-muted-foreground">({list.length})</span></h2>
@@ -323,6 +345,18 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
                         <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase", off ? "bg-destructive/15 text-destructive" : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400")}>{off ? "Revoked" : "Active"}</span>
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">{s.host} · {fmtDate(s.updated)}</span>
+                      {usageOn && (() => {
+                        const u = usage[s.id];
+                        const bal = u?.balance ?? 0;
+                        const out = bal <= 0 && rates?.enforce;
+                        return (
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                            <span className={cn("font-medium tabular-nums", out ? "text-destructive" : "text-foreground")}>{fmtCredits(bal)} credits</span>
+                            {out && <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-destructive">No credits</span>}
+                            <span className="text-muted-foreground">{(u?.chats ?? 0) + (u?.calls ?? 0)} conversations / {period}d</span>
+                          </span>
+                        );
+                      })()}
                     </button>
                     {rowBusy && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Working" />}
                   </div>

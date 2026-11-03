@@ -16,6 +16,10 @@ for (const [k, v] of Object.entries(loadEnv("development", process.cwd(), ""))) 
 //   npx wrangler kv namespace create WIDGETS
 // and set its id in WIDGETS_KV_ID (build env / .env) or paste it here. Without it, /console cannot save in production.
 const WIDGETS_KV_ID = process.env.WIDGETS_KV_ID || "";
+// Cloudflare D1 database for widget usage, credits and billing. Create it once with
+//   npx wrangler d1 create widget-usage
+// and set its database_id in WIDGETS_D1_ID. Tables are created automatically on first use.
+const WIDGETS_D1_ID = process.env.WIDGETS_D1_ID || "";
 
 export default defineConfig({
   nitro: {
@@ -23,6 +27,7 @@ export default defineConfig({
       wrangler: {
         name: "tachthrust-agent", // Must match the Worker name in Cloudflare Workers Builds.
         ...(WIDGETS_KV_ID ? { kv_namespaces: [{ binding: "WIDGETS", id: WIDGETS_KV_ID }] } : {}),
+        ...(WIDGETS_D1_ID ? { d1_databases: [{ binding: "USAGE", database_name: "widget-usage", database_id: WIDGETS_D1_ID }] } : {}),
       },
     },
   },
