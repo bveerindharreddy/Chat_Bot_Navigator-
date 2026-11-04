@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getWidget } from "@/lib/widget/store";
 import { getRates, hasCredit, recordUsage } from "@/lib/widget/usage";
 import { mintWidgetToken } from "@/lib/widget/live";
-import { widgetCors, widgetOriginAllowed } from "@/lib/widget/http";
+import { limited, widgetCors, widgetOriginAllowed } from "@/lib/widget/http";
 
 // Public but origin-locked: only active widgets with credit, on the sites they were created for, can start a session.
 // Body: { key, mode: "chat" | "voice", resumed?: boolean } (resumed = the same conversation continuing after a page change).
@@ -18,6 +18,8 @@ export const Route = createFileRoute("/api/widget/token")({
           return Response.json({ error: "This site is not allowed to use the assistant" }, { status: 403 });
         }
         const headers = widgetCors(origin);
+        const slow = await limited(request, "token", w.id, headers);
+        if (slow) return slow;
         if (!(await hasCredit(w.id))) return Response.json({ error: "The assistant is unavailable right now" }, { status: 402, headers });
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) return Response.json({ error: "The assistant is not configured" }, { status: 500, headers });

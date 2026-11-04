@@ -141,8 +141,7 @@ export function UsagePanel({ api, widgetId, period, onPeriod, onBalance }: { api
 
   const download = async () => {
     setBusy("statement");
-    const pw = sessionStorage.getItem("tt-console-pw") ?? "";
-    const res = await fetch(`/api/console/statement?id=${widgetId}&month=${month}`, { headers: { "x-admin-password": pw } }).catch(() => null);
+    const res = await fetch(`/api/console/statement?id=${widgetId}&month=${month}`, { credentials: "same-origin" }).catch(() => null);
     setBusy("");
     if (!res?.ok) return setErr((await res?.json().catch(() => null))?.error ?? "Could not create the statement");
     const url = URL.createObjectURL(await res.blob());

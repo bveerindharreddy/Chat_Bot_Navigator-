@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getWidget } from "@/lib/widget/store";
 import { getRates, recordUsage } from "@/lib/widget/usage";
-import { widgetOriginAllowed } from "@/lib/widget/http";
+import { limited, widgetOriginAllowed } from "@/lib/widget/http";
 
 const MAX_CALL_SECS = 30 * 60; // a session token lives at most 30 minutes
 
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/api/widget/event")({
         const body = (await request.text().then((t) => JSON.parse(t)).catch(() => null)) as { key?: unknown; type?: unknown; secs?: unknown } | null;
         const w = await getWidget(body?.key).catch(() => null);
         if (!w || w.status !== "active" || !widgetOriginAllowed(request, w.origins)) return new Response(null, { status: 204 });
+        if (await limited(request, "event", w.id)) return new Response(null, { status: 429 });
         const rates = await getRates();
         if (body?.type === "open") await recordUsage(w.id, { opens: 1 });
         else if (body?.type === "call_start") await recordUsage(w.id, { calls: 1, usedCredits: rates.voiceMinute });

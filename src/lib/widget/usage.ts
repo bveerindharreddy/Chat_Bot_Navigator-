@@ -82,6 +82,7 @@ function ensureSchema(d: DB) {
         kind TEXT NOT NULL, amount_m INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '')`),
       d.prepare(`CREATE INDEX IF NOT EXISTS ledger_widget ON ledger (widget_id, ts)`),
       d.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`),
+      d.prepare(`CREATE TABLE IF NOT EXISTS rate_limits (k TEXT PRIMARY KEY, win INTEGER NOT NULL, n INTEGER NOT NULL, exp INTEGER NOT NULL)`),
     ])
     .catch((e) => { schema = null; throw e; }));
 }
@@ -244,4 +245,30 @@ export async function statement(widgetId: string, month: string) {
   const used = usage.reduce((s, u) => s + u.used, 0);
   const added = entries.reduce((s, e) => s + e.credits, 0);
   return { month, opening, added: fromM(toM(added)), used: fromM(toM(used)), closing: fromM(toM(opening + added - used)), usage, entries };
+}
+
+// ---------- rate limiting ----------
+/**
+ * Fixed-window counter shared by every Worker instance (D1 is the single source of truth).
+ * Returns the seconds to wait when `key` has used up `max` hits in the current `windowSecs` window, otherwise 0.
+ * Fails open: if the database is missing or errors, nothing is limited (availability over strictness).
+ */
+export async function rateLimit(key: string, max: number, windowSecs: number): Promise<number> {
+  try {
+    const conn = await db();
+    if (!conn) return 0;
+    const now = Math.floor(Date.now() / 1000);
+    const win = now - (now % windowSecs);
+    const row = await conn
+      .prepare(`INSERT INTO rate_limits (k, win, n, exp) VALUES (?1, ?2, 1, ?3)
+        ON CONFLICT(k) DO UPDATE SET n = CASE WHEN win = excluded.win THEN n + 1 ELSE 1 END, win = excluded.win, exp = excluded.exp
+        RETURNING n`)
+      .bind(key, win, win + windowSecs)
+      .first<{ n: number }>();
+    if (Math.random() < 0.01) await conn.prepare("DELETE FROM rate_limits WHERE exp < ?").bind(now).run(); // occasional cleanup
+    return (row?.n ?? 0) > max ? win + windowSecs - now : 0;
+  } catch (e) {
+    console.error("rateLimit failed", e);
+    return 0;
+  }
 }

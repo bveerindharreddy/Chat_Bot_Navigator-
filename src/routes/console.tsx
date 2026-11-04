@@ -25,13 +25,14 @@ const ICON_CHOICES: { id: WidgetIcon; label: string; Icon: LucideIcon }[] = [
 const ICON_OF = Object.fromEntries(ICON_CHOICES.map((c) => [c.id, c.Icon])) as Record<WidgetIcon, LucideIcon>;
 
 const EMPTY: WidgetInput = { name: "", url: "", extraDomains: [], prompt: "", greeting: "", icon: "chat", color: WIDGET_COLORS[0], position: "right" };
-const PW = "tt-console-pw";
 
 type ApiResult<T> = { ok: boolean; status: number; data: T & { error?: string } };
-async function api<T>(method: string, path: string, pw: string, body?: unknown): Promise<ApiResult<T>> {
+// Admin API calls ride on the HttpOnly session cookie set by /api/console/login; the password is never stored here.
+async function api<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
   const res = await fetch(path, {
     method,
-    headers: { "Content-Type": "application/json", "x-admin-password": pw },
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
   if (!res) return { ok: false, status: 0, data: { error: "Network error, check your connection" } as T & { error?: string } };
@@ -42,35 +43,41 @@ const snippetFor = (id: string) => `<script src="${location.origin}/widget.js" d
 const fmtDate = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 function Console() {
-  const [pw, setPw] = useState<string | null>(null);
+  const [auth, setAuth] = useState<"checking" | "in" | "out">("checking");
   const [initial, setInitial] = useState<WidgetSummary[]>([]);
-  useEffect(() => { try { setPw(sessionStorage.getItem(PW)); } catch { /* ignore */ } }, []);
-  const signOut = () => { try { sessionStorage.removeItem(PW); } catch { /* ignore */ } setPw(null); };
+  useEffect(() => {
+    void api<{ authenticated?: boolean }>("GET", "/api/console/session").then((r) => setAuth(r.data.authenticated ? "in" : "out"));
+  }, []);
+  const signOut = () => { void api("DELETE", "/api/console/session"); setInitial([]); setAuth("out"); };
+  const expired = () => { setInitial([]); setAuth("out"); };
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
         <div className="container-site flex h-16 items-center justify-between">
           <a href="/" className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-primary" aria-hidden />TechThrust <span className="text-muted-foreground">Widget Console</span></a>
-          {pw && <Button size="sm" variant="heroOutline" onClick={signOut}>Sign out</Button>}
+          {auth === "in" && <Button size="sm" variant="heroOutline" onClick={signOut}>Sign out</Button>}
         </div>
       </header>
-      {pw ? <Dashboard pw={pw} initial={initial} onDenied={signOut} /> : <Login onDone={(p, list) => { setInitial(list); setPw(p); }} />}
+      {auth === "checking" ? (
+        <div className="flex justify-center py-24 text-muted-foreground"><Loader2 className="size-5 animate-spin" aria-label="Loading" /></div>
+      ) : auth === "in" ? <Dashboard initial={initial} onDenied={expired} /> : <Login onDone={(list) => { setInitial(list); setAuth("in"); }} />}
     </div>
   );
 }
 
-function Login({ onDone }: { onDone: (pw: string, list: WidgetSummary[]) => void }) {
+function Login({ onDone }: { onDone: (list: WidgetSummary[]) => void }) {
   const [v, setV] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setErr("");
-    const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets", v);
+    const login = await api("POST", "/api/console/login", { password: v });
+    if (!login.ok) { setBusy(false); return setErr(login.data.error ?? "Sign-in failed"); }
+    setV("");
+    const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets");
     setBusy(false);
-    if (!r.ok) return setErr(r.data.error ?? "Sign-in failed");
-    try { sessionStorage.setItem(PW, v); } catch { /* ignore */ }
-    onDone(v, r.data.widgets ?? []);
+    onDone(r.data.widgets ?? []);
   };
   return (
     <form onSubmit={submit} className="container-site mx-auto max-w-md py-24">
@@ -85,7 +92,7 @@ function Login({ onDone }: { onDone: (pw: string, list: WidgetSummary[]) => void
   );
 }
 
-function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSummary[]; onDenied: () => void }) {
+function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: () => void }) {
   const [form, setForm] = useState<WidgetInput>(EMPTY);
   const [extra, setExtra] = useState("");
   const [list, setList] = useState<WidgetSummary[]>(initial);
@@ -99,7 +106,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
   const [usageOn, setUsageOn] = useState(false);
   const [rates, setRates] = useState<Rates | null>(null);
   const [period, setPeriod] = useState<Period>(30);
-  const call: ApiFn = useCallback((method, path, body) => api(method, path, pw, body), [pw]);
+  const call: ApiFn = useCallback((method, path, body) => api(method, path, body), []);
 
   const loadUsage = useCallback(async () => {
     const r = await call<{ configured?: boolean; rates?: Rates; widgets?: Record<string, WidgetUsage> }>("GET", `/api/console/usage?days=${period}`);
@@ -109,7 +116,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
   useEffect(() => { void loadUsage(); }, [loadUsage]);
 
   const refresh = async () => {
-    const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets", pw);
+    const r = await api<{ widgets?: WidgetSummary[] }>("GET", "/api/console/widgets");
     if (r.status === 401) return onDenied();
     if (r.ok) setList(r.data.widgets ?? []);
     else setErr(r.data.error ?? "Could not load widgets");
@@ -123,7 +130,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
 
   const draft = async () => {
     setBusy("draft"); setErr("");
-    const r = await api<{ prompt?: string }>("POST", "/api/widget/draft-prompt", pw, { url: form.url, name: form.name });
+    const r = await api<{ prompt?: string }>("POST", "/api/widget/draft-prompt", { url: form.url, name: form.name });
     setBusy("");
     if (!r.ok || !r.data.prompt) return fail(r);
     set("prompt", r.data.prompt);
@@ -135,8 +142,8 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
     if (!check.success) return setErr(`${check.error.issues[0]?.path.join(".")}: ${check.error.issues[0]?.message}`);
     setBusy("save");
     const r = editing
-      ? await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("PUT", `/api/console/widgets/${editing.id}`, pw, check.data)
-      : await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("POST", "/api/console/widgets", pw, check.data);
+      ? await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("PUT", `/api/console/widgets/${editing.id}`, check.data)
+      : await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("POST", "/api/console/widgets", check.data);
     setBusy("");
     if (!r.ok || !r.data.widget || !r.data.summary) return fail(r);
     setEditing(r.data.widget); upsert(r.data.summary); setDirty(false);
@@ -147,7 +154,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
   const open = async (id: string) => {
     if (dirty && !confirm("Discard unsaved changes?")) return;
     setErr(""); setNotice(""); setBusy(`open:${id}`);
-    const r = await api<{ widget?: WidgetRecord }>("GET", `/api/console/widgets/${id}`, pw);
+    const r = await api<{ widget?: WidgetRecord }>("GET", `/api/console/widgets/${id}`);
     setBusy("");
     if (!r.ok || !r.data.widget) return fail(r);
     const w = r.data.widget;
@@ -165,7 +172,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
   const setStatus = async (s: WidgetSummary, status: WidgetStatus) => {
     if (status === "revoked" && !confirm(`Revoke "${s.name}"? It stops working on ${s.host} right away. You can restore it later.`)) return;
     setErr(""); setBusy(`status:${s.id}`);
-    const r = await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("PATCH", `/api/console/widgets/${s.id}`, pw, { status });
+    const r = await api<{ widget?: WidgetRecord; summary?: WidgetSummary }>("PATCH", `/api/console/widgets/${s.id}`, { status });
     setBusy("");
     if (!r.ok || !r.data.summary) return fail(r);
     upsert(r.data.summary);
@@ -176,7 +183,7 @@ function Dashboard({ pw, initial, onDenied }: { pw: string; initial: WidgetSumma
   const remove = async (s: WidgetSummary) => {
     if (!confirm(`Delete "${s.name}" permanently? Its embed code stops working and this cannot be undone.`)) return;
     setErr(""); setBusy(`delete:${s.id}`);
-    const r = await api("DELETE", `/api/console/widgets/${s.id}`, pw);
+    const r = await api("DELETE", `/api/console/widgets/${s.id}`);
     setBusy("");
     if (!r.ok) return fail(r);
     setList((l) => l.filter((x) => x.id !== s.id));
