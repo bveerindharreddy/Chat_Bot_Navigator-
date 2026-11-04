@@ -1,6 +1,6 @@
 // Console: leads the assistant collected for one widget. Talks to /api/console/leads.
 import { useEffect, useState } from "react";
-import { Download, Loader2, Mail, Phone, Trash2, UserRound } from "lucide-react";
+import { Download, Loader2, Mail, Phone, RefreshCw, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Lead, LeadStatus } from "@/lib/widget/leads";
@@ -14,10 +14,11 @@ export function LeadsPanel({ api, widgetId }: { api: ApiFn; widgetId: string }) 
   const [configured, setConfigured] = useState(true);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let live = true;
-    setLeads(null); setErr("");
+    setErr("");
     void api<{ configured?: boolean; leads?: Lead[] }>("GET", `/api/console/leads?id=${widgetId}`).then((r) => {
       if (!live) return;
       if (!r.ok) return setErr(r.data.error ?? "Could not load leads");
@@ -25,7 +26,14 @@ export function LeadsPanel({ api, widgetId }: { api: ApiFn; widgetId: string }) 
       setLeads(r.data.leads ?? []);
     });
     return () => { live = false; };
-  }, [api, widgetId]);
+  }, [api, widgetId, tick]);
+
+  // New leads arrive while the console is open: reload when the admin comes back to this tab.
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === "visible") setTick((t) => t + 1); };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => document.removeEventListener("visibilitychange", onFocus);
+  }, []);
 
   const setStatus = async (l: Lead, status: LeadStatus) => {
     setBusy(`s${l.id}`);
@@ -62,9 +70,12 @@ export function LeadsPanel({ api, widgetId }: { api: ApiFn; widgetId: string }) 
         <h2 id="leads-h" className="flex items-center gap-2 text-lg font-semibold">
           Leads {leads && <span className="text-sm font-normal text-muted-foreground">({leads.length}{fresh ? `, ${fresh} new` : ""})</span>}
         </h2>
-        <Button size="sm" variant="heroOutline" onClick={exportCsv} disabled={!leads?.length || busy !== ""}>
-          {busy === "csv" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setTick((t) => t + 1)} aria-label="Reload leads"><RefreshCw className="size-4" /></Button>
+          <Button size="sm" variant="heroOutline" onClick={exportCsv} disabled={!leads?.length || busy !== ""}>
+            {busy === "csv" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Export CSV
+          </Button>
+        </div>
       </div>
       {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
       {!configured && <p className="text-sm text-muted-foreground">Lead storage needs the D1 database (set <code>WIDGETS_D1_ID</code>).</p>}

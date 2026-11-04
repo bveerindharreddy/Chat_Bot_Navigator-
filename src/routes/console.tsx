@@ -113,6 +113,7 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
   const [copied, setCopied] = useState("");
   const [usage, setUsage] = useState<Record<string, WidgetUsage>>({});
   const [leadCount, setLeadCount] = useState<Record<string, number>>({});
+  const [openCount, setOpenCount] = useState(0); // re-opening a widget reloads its usage and leads
   const [usageOn, setUsageOn] = useState(false);
   const [rates, setRates] = useState<Rates | null>(null);
   const [period, setPeriod] = useState<Period>(30);
@@ -168,7 +169,7 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
     setBusy("");
     if (!r.ok || !r.data.widget) return fail(r);
     const w = r.data.widget;
-    setEditing(w); setDirty(false);
+    setEditing(w); setDirty(false); setOpenCount((n) => n + 1);
     setForm(toForm(w));
     setExtra(w.extraDomains.join(", "));
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -386,11 +387,11 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
         )}
 
         {editing && (
-          <UsagePanel api={call} widgetId={editing.id} period={period} onPeriod={setPeriod}
+          <UsagePanel key={`u${openCount}`} api={call} widgetId={editing.id} period={period} onPeriod={setPeriod}
             onBalance={(b) => setUsage((u) => ({ ...u, [editing.id]: { ...(u[editing.id] ?? { loads: 0, opens: 0, chats: 0, calls: 0, callSecs: 0, used: 0 }), balance: b } }))} />
         )}
 
-        {editing && <LeadsPanel api={call} widgetId={editing.id} />}
+        {editing && <LeadsPanel key={`l${openCount}`} api={call} widgetId={editing.id} />}
 
         {editing && (
           <ReportLinkCard api={call} widget={editing} onChange={(reportSecret, reportLeads) => setEditing((w) => (w ? { ...w, reportSecret, reportLeads } : w))} />

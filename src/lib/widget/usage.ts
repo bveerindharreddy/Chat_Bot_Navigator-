@@ -277,3 +277,18 @@ export async function rateLimit(key: string, max: number, windowSecs: number): P
     return 0;
   }
 }
+
+/** Seconds to wait if `key` has already reached `max` hits in the current window, without counting a new hit. */
+export async function rateLimitPeek(key: string, max: number, windowSecs: number): Promise<number> {
+  try {
+    const conn = await db();
+    if (!conn) return 0;
+    const now = Math.floor(Date.now() / 1000);
+    const win = now - (now % windowSecs);
+    const row = await conn.prepare("SELECT n FROM rate_limits WHERE k = ? AND win = ?").bind(key, win).first<{ n: number }>();
+    return (row?.n ?? 0) >= max ? win + windowSecs - now : 0;
+  } catch (e) {
+    console.error("rateLimitPeek failed", e);
+    return 0;
+  }
+}
