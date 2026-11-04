@@ -21,6 +21,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ApiLeadRouteImport } from './routes/api.lead'
 import { Route as ApiLiveTokenRouteImport } from './routes/api.live-token'
+import { Route as DocsVocalisRouteImport } from './routes/docs.vocalis'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as ProductsVelynoraRouteImport } from './routes/products.velynora'
 import { Route as ProductsVelynoraLiteRouteImport } from './routes/products.velynora-lite'
@@ -101,6 +102,11 @@ const ApiLeadRoute = ApiLeadRouteImport.update({
 const ApiLiveTokenRoute = ApiLiveTokenRouteImport.update({
   id: '/api/live-token',
   path: '/api/live-token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsVocalisRoute = DocsVocalisRouteImport.update({
+  id: '/docs/vocalis',
+  path: '/docs/vocalis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsIndexRoute = ProductsIndexRouteImport.update({
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/api/lead': typeof ApiLeadRoute
   '/api/live-token': typeof ApiLiveTokenRoute
+  '/docs/vocalis': typeof DocsVocalisRoute
   '/products/velynora': typeof ProductsVelynoraRoute
   '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
   '/products/vocalis': typeof ProductsVocalisRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/api/lead': typeof ApiLeadRoute
   '/api/live-token': typeof ApiLiveTokenRoute
+  '/docs/vocalis': typeof DocsVocalisRoute
   '/products/velynora': typeof ProductsVelynoraRoute
   '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
   '/products/vocalis': typeof ProductsVocalisRoute
@@ -293,6 +301,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/api/lead': typeof ApiLeadRoute
   '/api/live-token': typeof ApiLiveTokenRoute
+  '/docs/vocalis': typeof DocsVocalisRoute
   '/products/velynora': typeof ProductsVelynoraRoute
   '/products/velynora-lite': typeof ProductsVelynoraLiteRoute
   '/products/vocalis': typeof ProductsVocalisRoute
@@ -330,6 +339,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/lead'
     | '/api/live-token'
+    | '/docs/vocalis'
     | '/products/velynora'
     | '/products/velynora-lite'
     | '/products/vocalis'
@@ -365,6 +375,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/lead'
     | '/api/live-token'
+    | '/docs/vocalis'
     | '/products/velynora'
     | '/products/velynora-lite'
     | '/products/vocalis'
@@ -400,6 +411,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/lead'
     | '/api/live-token'
+    | '/docs/vocalis'
     | '/products/velynora'
     | '/products/velynora-lite'
     | '/products/vocalis'
@@ -436,6 +448,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ApiLeadRoute: typeof ApiLeadRoute
   ApiLiveTokenRoute: typeof ApiLiveTokenRoute
+  DocsVocalisRoute: typeof DocsVocalisRoute
   ProductsVelynoraRoute: typeof ProductsVelynoraRoute
   ProductsVelynoraLiteRoute: typeof ProductsVelynoraLiteRoute
   ProductsVocalisRoute: typeof ProductsVocalisRoute
@@ -543,6 +556,13 @@ declare module '@tanstack/react-router' {
       path: '/api/live-token'
       fullPath: '/api/live-token'
       preLoaderRoute: typeof ApiLiveTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/vocalis': {
+      id: '/docs/vocalis'
+      path: '/docs/vocalis'
+      fullPath: '/docs/vocalis'
+      preLoaderRoute: typeof DocsVocalisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products/': {
@@ -708,6 +728,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ApiLeadRoute: ApiLeadRoute,
   ApiLiveTokenRoute: ApiLiveTokenRoute,
+  DocsVocalisRoute: DocsVocalisRoute,
   ProductsVelynoraRoute: ProductsVelynoraRoute,
   ProductsVelynoraLiteRoute: ProductsVelynoraLiteRoute,
   ProductsVocalisRoute: ProductsVocalisRoute,
