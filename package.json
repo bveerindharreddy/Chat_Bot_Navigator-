@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build:widget": "vite build --config vite.widget.config.ts --mode shopify && vite build --config vite.widget.config.ts --mode widget",
+    "build:widget": "vite build --config vite.widget.config.ts --mode shopify && vite build --config vite.widget.config.ts --mode widget && vite build --config vite.widget.config.ts --mode widget-live",
     "build": "npm run build:widget && vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

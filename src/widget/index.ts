@@ -1,8 +1,9 @@
 // Embeddable voice + chat companion, built to public/widget.js.
 // Install: <script src="https://<host>/widget.js" data-key="<widget key>" defer></script>
 // The key is just an id. Prompt, tools and model settings are stored and applied on the server.
-import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
-import { MicCapture, Player } from "@/lib/voice/audio";
+import type { LiveServerMessage, Session } from "@google/genai";
+import type { MicCapture, Player } from "@/lib/voice/audio";
+import type { LiveModule } from "./live";
 import type { PublicWidgetConfig } from "@/lib/widget/shared";
 import { runWidgetTool } from "./tools";
 import { STYLES, ICONS, launcherIcon, onColor } from "./ui";
@@ -23,6 +24,23 @@ const load = (): Saved => {
   try { return { open: false, lines: [], resume: null, ...JSON.parse(sessionStorage.getItem(STORE) ?? "{}") }; } catch { return { open: false, lines: [], resume: null }; }
 };
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+declare const __WIDGET_BUILD__: string;
+
+// The realtime client and audio code live in widget-live.js and load on first use (see live.ts).
+let liveModule: Promise<LiveModule> | null = null;
+function loadLive(): Promise<LiveModule> {
+  return (liveModule ??= new Promise<LiveModule>((resolve, reject) => {
+    const w = window as unknown as { __techthrustWidgetLive?: LiveModule };
+    if (w.__techthrustWidgetLive) return resolve(w.__techthrustWidgetLive);
+    const s = document.createElement("script");
+    s.src = `${API}/widget-live.js?v=${__WIDGET_BUILD__}`;
+    s.async = true;
+    s.onload = () => (w.__techthrustWidgetLive ? resolve(w.__techthrustWidgetLive) : reject(new Error("Could not load the assistant")));
+    s.onerror = () => { liveModule = null; reject(new Error("Could not load the assistant. Check your connection and try again.")); };
+    document.head.appendChild(s);
+  }));
+}
+
 const post = (path: string, body: unknown) =>
   fetch(`${API}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
@@ -105,8 +123,9 @@ class Widget {
       const res = await post("/api/widget/token", { key: WIDGET_KEY, mode: withMic ? "voice" : "chat", resumed });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Could not start the assistant");
-      const ai = new GoogleGenAI({ apiKey: body.token, httpOptions: { apiVersion: "v1alpha" } });
-      this.player = new Player();
+      const { Client, Speaker } = await loadLive();
+      const ai = new Client({ apiKey: body.token, httpOptions: { apiVersion: "v1alpha" } });
+      this.player = new Speaker();
       this.session = await ai.live.connect({
         model: body.model,
         config: {}, // prompt, tools and audio settings are locked server-side in the token
@@ -146,7 +165,8 @@ class Widget {
   }
 
   private async startMic() {
-    this.mic = new MicCapture();
+    const { Mic } = await loadLive();
+    this.mic = new Mic();
     await this.mic.start((data) => !this.muted && this.session?.sendRealtimeInput({ audio: { data, mimeType: "audio/pcm;rate=16000" } }));
     this.audioOn = true; this.voiceOn = true;
     this.secs = 0;
@@ -254,6 +274,7 @@ class Widget {
   private openPanel() {
     this.open = true; this.teaserOn = false; clearTimeout(this.teaserTimer);
     beacon("open"); this.persistLive(); this.render();
+    void loadLive().catch(() => { /* retried when the visitor sends something */ });
     this.root.getElementById("inp")?.focus();
   }
 
