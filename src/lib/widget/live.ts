@@ -16,7 +16,7 @@ export async function mintWidgetToken(apiKey: string, w: WidgetRecord) {
         model: LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: buildWidgetPrompt(w.name, w.prompt),
+          systemInstruction: buildWidgetPrompt(w),
           tools: [{ functionDeclarations: WIDGET_TOOLS }],
           realtimeInputConfig: {
             automaticActivityDetection: {

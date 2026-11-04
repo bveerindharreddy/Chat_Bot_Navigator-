@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getWidget } from "@/lib/widget/store";
 import { getRates, hasCredit, recordUsage } from "@/lib/widget/usage";
-import type { PublicWidgetConfig } from "@/lib/widget/shared";
+import { publicConfig } from "@/lib/widget/shared";
 import { limited, widgetCors, widgetOriginAllowed } from "@/lib/widget/http";
 
 // Public: the embedded widget asks how to look (name, colour, icon). Never returns the prompt.
@@ -21,8 +21,7 @@ export const Route = createFileRoute("/api/widget/config")({
         const slow = await limited(request, "config", w.id, widgetCors(origin));
         if (slow) return slow;
         await recordUsage(w.id, { loads: 1, usedCredits: (await getRates()).load });
-        const cfg: PublicWidgetConfig = { name: w.name, color: w.color, icon: w.icon, greeting: w.greeting, position: w.position };
-        return Response.json(cfg, { headers: { ...widgetCors(origin), "Cache-Control": "no-store" } });
+        return Response.json(publicConfig(w), { headers: { ...widgetCors(origin), "Cache-Control": "no-store" } });
       },
     },
   },

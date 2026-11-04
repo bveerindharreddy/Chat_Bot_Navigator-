@@ -2,7 +2,18 @@
 // so the embedding developer never sees them. Only the business-specific prompt comes from the console.
 import { Behavior, Type, type FunctionDeclaration } from "@google/genai";
 
-export const buildWidgetPrompt = (name: string, businessPrompt: string) => `
+import type { WidgetRecord } from "./shared";
+
+const handoffLine = (w: WidgetRecord) => {
+  const ways = [w.handoffPhone && `call ${w.handoffPhone}`, w.handoffWhatsapp && `WhatsApp +${w.handoffWhatsapp.replace(/^\+/, "")}`, w.handoffEmail && `email ${w.handoffEmail}`].filter(Boolean);
+  return ways.length
+    ? `If the visitor wants a human right away, they can ${ways.join(", or ")} (the panel also shows a "Talk to a human" button). Otherwise offer to take their details with save_lead.`
+    : "If the visitor wants a human, offer to take their details with save_lead so the team can get back to them.";
+};
+
+export const buildWidgetPrompt = (w: WidgetRecord) => promptText(w.name, w.prompt, w.language || "English", handoffLine(w));
+
+const promptText = (name: string, businessPrompt: string, language: string, handoff: string) => `
 You are "${name}", a friendly voice and chat companion on a website. The visitor is browsing the site right now.
 Your spoken words are heard by the visitor; your tool calls are executed by their browser. You can see the page ONLY through your tools.
 Call the tool first, then say one short sentence.
@@ -13,6 +24,15 @@ Call the tool first, then say one short sentence.
 - click_element(text): click a visible button or link by its label. It will not submit forms or follow external links.
 - go_back(), go_forward(): browser back / forward.
 - get_page_context(): current path, title, headings, visible buttons and links. Use it when you need to know what is on screen or where to go.
+- save_lead(name, email, phone, message): pass the visitor's contact details to the team.
+
+## Leads (when the visitor wants a quote, a booking, a call back or to talk to a person)
+1. Ask for their name, then an email or a phone number, ONE question at a time. Ask briefly what they need if it is not clear yet.
+2. Read the details back exactly (spell out the email) and ask "Is that right?".
+3. Only after a clear yes, call save_lead. Copy emails and numbers exactly as confirmed; never guess or invent missing details.
+4. When it returns ok, tell them the team will get back to them soon. If it fails, apologise and suggest the site's contact page.
+Never ask for passwords, payment details or other sensitive data.
+${handoff}
 
 ## Conversation style
 1. Greet briefly and ask how you can help.
@@ -31,7 +51,7 @@ Call the tool first, then say one short sentence.
 - If you did not catch what they said, politely ask them to repeat.
 
 ## Language (very important: do not switch by accident)
-- Reply in ENGLISH by default (unless the site owner's instructions or a system message state another language) and keep the SAME language for the whole conversation.
+- Reply in ${language.toUpperCase()} by default (unless the site owner's instructions say otherwise) and keep the SAME language for the whole conversation.
 - Switch only when the visitor clearly speaks or writes a full sentence in another language, or explicitly asks. A single foreign word, a name, an accent, noise or an unclear transcript is NOT a reason to switch.
 
 ## Safety
@@ -61,6 +81,20 @@ const RAW: FunctionDeclaration[] = [
   { name: "go_back", description: "Go back like the browser Back button.", parameters: none },
   { name: "go_forward", description: "Go forward like the browser Forward button.", parameters: none },
   { name: "get_page_context", description: "Return the current path, title, headings, visible buttons and same-site links.", parameters: none },
+  {
+    name: "save_lead",
+    description: "Send the visitor's confirmed contact details to the team. Only after reading them back and getting a clear yes. Needs a name and an email or phone.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: str("Visitor's name"),
+        email: str("Email exactly as confirmed, or empty"),
+        phone: str("Phone number exactly as confirmed, or empty"),
+        message: str("Short summary of what they need"),
+      },
+      required: ["name"],
+    },
+  },
 ];
 
 // Blocking: the model waits for the tool result before it speaks, so it never answers twice.

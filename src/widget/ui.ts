@@ -14,6 +14,9 @@ const PATHS = {
   micOff: '<line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" x2="12" y1="19" y2="22"/>',
   volumeX: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>',
   spin: '<path class="spin" d="M21 12a9 9 0 1 1-6.2-8.55"/>',
+  minus: '<path d="M5 12h14"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
 };
 
 export const ICONS = Object.fromEntries(Object.entries(PATHS).map(([k, v]) => [k, svg(v)])) as Record<keyof typeof PATHS, string>;
@@ -65,4 +68,23 @@ form button.call{background:#1f2937;border:1px solid #374151}form button.call.li
 .toast{max-width:320px;background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:10px 14px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.4);color:#d1d5db}
 .toast.err{color:#f87171}button.toast{text-align:left;color:#fff;border-color:__ACCENT__}
 .spin{transform-origin:center;animation:r 1s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid __ACCENT__;outline-offset:2px}
+.fab{position:relative}.badge{position:absolute;top:4px;right:4px;width:12px;height:12px;border-radius:50%;background:#ef4444;border:2px solid #fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.chips button{border:1px solid __ACCENT__;border-radius:999px;padding:6px 12px;font-size:13px;color:#e5e7eb;background:transparent;text-align:left}
+.chips button:hover{background:color-mix(in srgb,__ACCENT__ 25%,transparent)}
+.human{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid #1f2937;font-size:12px;color:#9ca3af}
+.human span{margin-right:2px}
+.human a{display:inline-flex;align-items:center;gap:4px;color:#e5e7eb;text-decoration:none;border:1px solid #374151;border-radius:999px;padding:4px 10px}
+.human a svg{width:14px;height:14px}.human a:hover{border-color:__ACCENT__}
+.legal{margin:0;padding:0 12px 8px;font-size:10.5px;color:#9ca3af;text-align:center}.legal a{color:#9ca3af}
+.teaser{display:flex;align-items:flex-start;gap:4px;max-width:260px;background:#fff;color:#111827;border-radius:14px;padding:10px 8px 10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;line-height:1.35}
+.teaser .tbody{color:inherit;text-align:left;flex:1}.teaser .tx{color:#6b7280;width:22px;height:22px;flex:none}.teaser .tx svg{width:14px;height:14px}
+@media (max-width:480px){
+  .wrap.is-open{inset:0;right:0;bottom:0;left:0;max-width:none;gap:0}
+  .wrap.is-open .panel{width:100vw;height:100dvh;border-radius:0;border:0}
+  .wrap.is-open .log{flex:1;height:auto}
+  .wrap.is-open .bar{display:none}
+}
+@media (prefers-reduced-motion:reduce){.fab,.fab.live,.dots i,.spin{animation:none!important;transition:none!important}}
 `;

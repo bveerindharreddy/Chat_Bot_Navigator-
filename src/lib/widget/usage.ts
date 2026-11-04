@@ -58,8 +58,8 @@ async function openDevDb(): Promise<DB> {
   };
 }
 
-/** null when usage tracking is not configured (production without the USAGE binding). */
-async function db(): Promise<DB | null> {
+/** null when usage tracking is not configured (production without the USAGE binding). Shared with leads.ts. */
+export async function db(): Promise<DB | null> {
   const env = (globalThis as { __env__?: Record<string, unknown> }).__env__;
   const d1 = env?.USAGE as DB | undefined;
   const base = d1 ?? (import.meta.env.DEV ? await (devDb ??= openDevDb()) : null);
@@ -82,6 +82,11 @@ function ensureSchema(d: DB) {
         kind TEXT NOT NULL, amount_m INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '')`),
       d.prepare(`CREATE INDEX IF NOT EXISTS ledger_widget ON ledger (widget_id, ts)`),
       d.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`),
+      d.prepare(`CREATE TABLE IF NOT EXISTS leads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, widget_id TEXT NOT NULL, ts INTEGER NOT NULL,
+        name TEXT NOT NULL, email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '',
+        page TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new', webhook TEXT NOT NULL DEFAULT '')`),
+      d.prepare(`CREATE INDEX IF NOT EXISTS leads_widget ON leads (widget_id, ts)`),
       d.prepare(`CREATE TABLE IF NOT EXISTS rate_limits (k TEXT PRIMARY KEY, win INTEGER NOT NULL, n INTEGER NOT NULL, exp INTEGER NOT NULL)`),
     ])
     .catch((e) => { schema = null; throw e; }));

@@ -4,9 +4,11 @@ import { Ban, Bot, Check, Copy, Headset, Loader2, Lock, MessageCircle, Pencil, P
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { WIDGET_COLORS, widgetInput, type WidgetIcon, type WidgetInput, type WidgetRecord, type WidgetStatus, type WidgetSummary } from "@/lib/widget/shared";
+import { WIDGET_COLORS, WIDGET_DEFAULTS, widgetInput, type WidgetIcon, type WidgetInput, type WidgetRecord, type WidgetStatus, type WidgetSummary } from "@/lib/widget/shared";
 import { onColor } from "@/widget/ui";
 import { cn } from "@/lib/utils";
+import { LeadsPanel } from "@/components/console/leads";
+import { Switch } from "@/components/ui/switch";
 import { fmtCredits, RatesCard, UsagePanel, type ApiFn, type Period, type WidgetUsage } from "@/components/console/usage";
 import type { Rates } from "@/lib/widget/usage";
 
@@ -24,7 +26,13 @@ const ICON_CHOICES: { id: WidgetIcon; label: string; Icon: LucideIcon }[] = [
 ];
 const ICON_OF = Object.fromEntries(ICON_CHOICES.map((c) => [c.id, c.Icon])) as Record<WidgetIcon, LucideIcon>;
 
-const EMPTY: WidgetInput = { name: "", url: "", extraDomains: [], prompt: "", greeting: "", icon: "chat", color: WIDGET_COLORS[0], position: "right" };
+const EMPTY: WidgetInput = { name: "", url: "", extraDomains: [], prompt: "", greeting: "", icon: "chat", color: WIDGET_COLORS[0], position: "right", ...WIDGET_DEFAULTS };
+
+/** The editable part of a stored widget. */
+const toForm = (w: WidgetRecord): WidgetInput => {
+  const { id: _i, origins: _o, status: _s, created: _c, updated: _u, ...rest } = w;
+  return { ...EMPTY, ...rest };
+};
 
 type ApiResult<T> = { ok: boolean; status: number; data: T & { error?: string } };
 // Admin API calls ride on the HttpOnly session cookie set by /api/console/login; the password is never stored here.
@@ -103,15 +111,16 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState("");
   const [usage, setUsage] = useState<Record<string, WidgetUsage>>({});
+  const [leadCount, setLeadCount] = useState<Record<string, number>>({});
   const [usageOn, setUsageOn] = useState(false);
   const [rates, setRates] = useState<Rates | null>(null);
   const [period, setPeriod] = useState<Period>(30);
   const call: ApiFn = useCallback((method, path, body) => api(method, path, body), []);
 
   const loadUsage = useCallback(async () => {
-    const r = await call<{ configured?: boolean; rates?: Rates; widgets?: Record<string, WidgetUsage> }>("GET", `/api/console/usage?days=${period}`);
+    const r = await call<{ configured?: boolean; rates?: Rates; widgets?: Record<string, WidgetUsage>; leads?: Record<string, number> }>("GET", `/api/console/usage?days=${period}`);
     if (!r.ok) return;
-    setUsageOn(!!r.data.configured); setRates(r.data.rates ?? null); setUsage(r.data.widgets ?? {});
+    setUsageOn(!!r.data.configured); setRates(r.data.rates ?? null); setUsage(r.data.widgets ?? {}); setLeadCount(r.data.leads ?? {});
   }, [call, period]);
   useEffect(() => { void loadUsage(); }, [loadUsage]);
 
@@ -138,7 +147,7 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
 
   const save = async () => {
     setErr(""); setNotice("");
-    const check = widgetInput.safeParse({ ...form, extraDomains: extra.split(/[\s,]+/).filter(Boolean) });
+    const check = widgetInput.safeParse({ ...form, extraDomains: extra.split(/[\s,]+/).filter(Boolean), starters: form.starters.map((q) => q.trim()).filter(Boolean) });
     if (!check.success) return setErr(`${check.error.issues[0]?.path.join(".")}: ${check.error.issues[0]?.message}`);
     setBusy("save");
     const r = editing
@@ -159,7 +168,7 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
     if (!r.ok || !r.data.widget) return fail(r);
     const w = r.data.widget;
     setEditing(w); setDirty(false);
-    setForm({ name: w.name, url: w.url, extraDomains: w.extraDomains, prompt: w.prompt, greeting: w.greeting, icon: w.icon, color: w.color, position: w.position });
+    setForm(toForm(w));
     setExtra(w.extraDomains.join(", "));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -301,6 +310,59 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
           </fieldset>
         </section>
 
+        <section className="card-premium space-y-5 p-6">
+          <h2 className="text-lg font-semibold">4. Engagement & leads</h2>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className={label} htmlFor="w-lang">Assistant language</label>
+              <Input id="w-lang" value={form.language} maxLength={30} onChange={(e) => set("language", e.target.value)} placeholder="English" list="w-langs" />
+              <datalist id="w-langs">{["English", "Arabic", "Hindi", "Urdu", "French", "Spanish", "German", "Portuguese", "Russian", "Chinese"].map((l) => <option key={l} value={l} />)}</datalist>
+              <p className="mt-1.5 text-xs text-muted-foreground">Starts in this language; switches if the visitor clearly uses another.</p>
+            </div>
+            <div>
+              <label className={label} htmlFor="w-teaser">Pop-up greeting <span className="font-normal text-muted-foreground">(optional)</span></label>
+              <div className="flex gap-2">
+                <Input id="w-teaser" value={form.teaser} maxLength={120} onChange={(e) => set("teaser", e.target.value)} placeholder="Need help choosing? Ask me!" />
+                <Input type="number" min={0} max={120} value={form.teaserDelay} onChange={(e) => set("teaserDelay", Math.max(0, Math.min(120, Math.round(Number(e.target.value) || 0))))} className="w-20" aria-label="Seconds before the pop-up greeting" />
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">Shown next to the button after this many seconds (once per visit).</p>
+            </div>
+          </div>
+          <fieldset>
+            <legend className={label}>Suggested questions <span className="font-normal text-muted-foreground">(up to 4, shown as buttons when the chat opens)</span></legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[0, 1, 2, 3].map((i) => (
+                <Input key={i} value={form.starters[i] ?? ""} maxLength={60} aria-label={`Suggested question ${i + 1}`}
+                  placeholder={["What do you offer?", "How much does it cost?", "Book an appointment", "Talk to someone"][i]}
+                  onChange={(e) => { const next = [...form.starters]; next[i] = e.target.value; set("starters", next.slice(0, 4)); }} />
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className={label}>Talk to a human <span className="font-normal text-muted-foreground">(optional; shown as a button in the chat)</span></legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input value={form.handoffPhone} maxLength={40} onChange={(e) => set("handoffPhone", e.target.value)} placeholder="Phone, e.g. +971 4 123 4567" aria-label="Handoff phone" />
+              <Input value={form.handoffWhatsapp} maxLength={20} onChange={(e) => set("handoffWhatsapp", e.target.value)} placeholder="WhatsApp, e.g. 971501234567" aria-label="Handoff WhatsApp number" />
+              <Input value={form.handoffEmail} maxLength={200} onChange={(e) => set("handoffEmail", e.target.value)} placeholder="Email" aria-label="Handoff email" />
+            </div>
+          </fieldset>
+          <div>
+            <label className={label} htmlFor="w-hook">Lead webhook <span className="font-normal text-muted-foreground">(optional)</span></label>
+            <Input id="w-hook" value={form.leadWebhook} maxLength={500} onChange={(e) => set("leadWebhook", e.target.value)} placeholder="https://hooks.zapier.com/…" />
+            <p className="mt-1.5 text-xs text-muted-foreground">Every lead the assistant collects is also POSTed here as JSON, so it can go straight into the customer's CRM, sheet or inbox.</p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className={label} htmlFor="w-privacy">Privacy policy link <span className="font-normal text-muted-foreground">(recommended)</span></label>
+              <Input id="w-privacy" value={form.privacyUrl} maxLength={300} onChange={(e) => set("privacyUrl", e.target.value)} placeholder="https://www.customer.com/privacy" />
+            </div>
+            <label className="flex items-center justify-between gap-4 rounded-lg border border-border p-3 text-sm">
+              <span><span className="font-medium">Show "Powered by TechThrust"</span><span className="block text-xs text-muted-foreground">Turn off for white-label plans.</span></span>
+              <Switch checked={form.showBranding} onCheckedChange={(v) => set("showBranding", v)} aria-label='Show "Powered by TechThrust"' />
+            </label>
+          </div>
+        </section>
+
         {err && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{err}</p>}
         {notice && <p role="status" className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm">{notice}</p>}
         <div className="flex flex-wrap items-center gap-3">
@@ -326,6 +388,8 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
           <UsagePanel api={call} widgetId={editing.id} period={period} onPeriod={setPeriod}
             onBalance={(b) => setUsage((u) => ({ ...u, [editing.id]: { ...(u[editing.id] ?? { loads: 0, opens: 0, chats: 0, calls: 0, callSecs: 0, used: 0 }), balance: b } }))} />
         )}
+
+        {editing && <LeadsPanel api={call} widgetId={editing.id} />}
       </div>
 
       <aside className="min-w-0 space-y-6 lg:sticky lg:top-6">
@@ -360,7 +424,7 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
                           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
                             <span className={cn("font-medium tabular-nums", out ? "text-destructive" : "text-foreground")}>{fmtCredits(bal)} credits</span>
                             {out && <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-destructive">No credits</span>}
-                            <span className="text-muted-foreground">{(u?.chats ?? 0) + (u?.calls ?? 0)} conversations / {period}d</span>
+                            <span className="text-muted-foreground">{(u?.chats ?? 0) + (u?.calls ?? 0)} conversations · {leadCount[s.id] ?? 0} leads / {period}d</span>
                           </span>
                         );
                       })()}
@@ -399,14 +463,25 @@ function Preview({ form }: { form: WidgetInput }) {
           </div>
           <div className="space-y-2 p-3.5 text-sm">
             <div className="w-fit max-w-[88%] rounded-2xl rounded-bl-sm bg-[#1f2937] px-3 py-2">{form.greeting || `Hi! I'm ${name}. Ask me anything.`}</div>
-            <div className="ml-auto w-fit rounded-2xl rounded-br-sm px-3 py-2" style={{ background: `color-mix(in srgb, ${form.color} 35%, #0b1220)` }}>What can you help with?</div>
+            {form.starters.some((q) => q.trim()) ? (
+              <div className="flex flex-wrap gap-1.5">
+                {form.starters.filter((q) => q.trim()).map((q) => <span key={q} className="rounded-full border px-2.5 py-1 text-xs" style={{ borderColor: form.color }}>{q}</span>)}
+              </div>
+            ) : (
+              <div className="ml-auto w-fit rounded-2xl rounded-br-sm px-3 py-2" style={{ background: `color-mix(in srgb, ${form.color} 35%, #0b1220)` }}>What can you help with?</div>
+            )}
           </div>
+          {(form.handoffPhone || form.handoffWhatsapp || form.handoffEmail) && (
+            <div className="border-t border-[#1f2937] px-3.5 py-2 text-xs text-[#9ca3af]">Talk to a human: {[form.handoffPhone && "Call", form.handoffWhatsapp && "WhatsApp", form.handoffEmail && "Email"].filter(Boolean).join(" · ")}</div>
+          )}
           <div className="flex items-center gap-2 border-t border-[#1f2937] p-2.5">
             <span className="flex size-9 items-center justify-center rounded-full border border-[#374151] bg-[#1f2937]"><Headset className="size-4" aria-hidden /></span>
             <span className="flex-1 rounded-full border border-[#374151] bg-[#111827] px-3 py-2 text-xs text-[#9ca3af]">Type your message…</span>
             <span className="flex size-9 items-center justify-center rounded-full" style={{ background: form.color, color: on }}><Send className="size-4" aria-hidden /></span>
           </div>
+          <p className="px-3.5 pb-2 text-[10px] text-[#9ca3af]">AI assistant · may make mistakes{form.privacyUrl && " · Privacy"}{form.showBranding && " · Powered by TechThrust"}</p>
         </div>
+        {form.teaser && <span className="max-w-[80%] rounded-2xl border border-border bg-background px-3 py-2 text-xs text-foreground shadow">{form.teaser}</span>}
         <span className="flex size-14 items-center justify-center rounded-full shadow-lg" style={{ background: form.color, color: on }}><Icon className="size-6" aria-hidden /></span>
       </div>
     </div>

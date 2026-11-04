@@ -55,6 +55,8 @@ class Widget {
   private player: Player | null = null;
   private audioOn = false;
   private needsContext = this.saved.lines.length > 0; // a fresh session after a page change has no memory
+  private teaserOn = false;
+  private teaserTimer?: ReturnType<typeof setTimeout>;
 
   constructor(private cfg: PublicWidgetConfig) {
     this.host.id = HOST_ID;
@@ -63,6 +65,9 @@ class Widget {
     this.render();
     // Multi-page sites reload the script on every page change, so a live chat or call reconnects on the next page.
     addEventListener("pagehide", () => { this.endCallSegment(); this.persistLive(); });
+    // Escape minimises the panel (keyboard users); the conversation keeps going.
+    this.host.addEventListener("keydown", (e) => { if (e.key === "Escape" && this.open) { e.stopPropagation(); this.minimise(); } });
+    this.scheduleTeaser();
     const r = this.saved.resume;
     if (r && Date.now() - r.ts < RESUME_WINDOW_MS) void this.connect(r.voice, { resumed: true, speak: r.agentNav });
   }
@@ -85,8 +90,9 @@ class Widget {
     this.render();
   }
 
-  private context(): string {
-    const recent = this.lines.slice(-8).map((l) => `${l.role === "you" ? "Visitor" : "You"}: ${l.text}`).join("\n");
+  /** Recent conversation for a fresh session (it has no memory). `skip` leaves out the newest lines. */
+  private context(skip = 0): string {
+    const recent = this.lines.slice(0, this.lines.length - skip).slice(-8).map((l) => `${l.role === "you" ? "Visitor" : "You"}: ${l.text}`).join("\n");
     return `[system] The visitor is on ${location.pathname} ("${document.title}"). Keep using the language of the conversation so far. ${recent ? `Earlier in this conversation (context only, do not repeat it):\n${recent}` : ""}`;
   }
 
@@ -120,8 +126,14 @@ class Widget {
           ? "You just moved the visitor to this page as part of the conversation. Say at most ONE short sentence about it and continue helping. Do NOT greet again."
           : "The visitor moved to this page themselves. Do NOT speak now; wait for them. Do NOT greet again.";
         this.session?.sendClientContent({ turns: [{ role: "user", parts: [{ text: `${this.context()} ${note}` }] }], turnComplete: speak });
-      } else if (withMic) this.send(`[system] The visitor just started a voice call on ${location.pathname} ("${document.title}"). Greet them briefly.`);
-      this.needsContext = false;
+        this.needsContext = false;
+      } else if (withMic) {
+        const earlier = this.lines.length > 0;
+        this.send(`${earlier ? `${this.context()} ` : ""}[system] The visitor just started a voice call on ${location.pathname} ("${document.title}"). ${earlier ? "Continue the conversation; do NOT greet again." : "Greet them briefly."}`);
+        this.needsContext = false;
+      } else {
+        this.needsContext = this.lines.length > 1; // the typed message that triggered this connect is sent next, with the earlier lines
+      }
       return true;
     } catch (e) {
       this.reconnecting = false;
@@ -174,10 +186,11 @@ class Widget {
     const text = raw.trim().slice(0, 1000);
     if (!text) return;
     this.error = "";
-    if (!this.session && !(await this.connect(false))) return;
+    // Show the message straight away; if the assistant cannot be reached it stays visible with the error.
     this.addLine("you", text, true);
     this.thinking = true; this.render();
-    const parts = this.needsContext ? [{ text: this.context() }, { text }] : [{ text }];
+    if (!this.session && !(await this.connect(false))) { this.thinking = false; this.render(); return; }
+    const parts = this.needsContext ? [{ text: this.context(1) }, { text }] : [{ text }];
     this.needsContext = false;
     this.session?.sendClientContent({ turns: [{ role: "user", parts }], turnComplete: true });
   }
@@ -211,6 +224,11 @@ class Widget {
           name: c.name,
           response: await runWidgetTool(c.name ?? "", (c.args ?? {}) as Record<string, unknown>, {
             beforeNavigate: () => { this.agentNav = true; this.persistLive(); },
+            saveLead: async (lead) => {
+              const res = await post("/api/widget/lead", { key: WIDGET_KEY, ...lead }).catch(() => null);
+              const body = (await res?.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+              return res?.ok && body?.ok ? { ok: true } : { ok: false, error: body?.error ?? "could not send the details" };
+            },
           }),
         })),
       );
@@ -219,56 +237,126 @@ class Widget {
   }
 
   // ---------- UI ----------
+  // ---------- UI ----------
+  /** Pop-up greeting next to the launcher, once per visit, after the configured delay. */
+  private scheduleTeaser() {
+    const { teaser, teaserDelay } = this.cfg;
+    if (!teaser || teaserDelay <= 0 || this.open || this.lines.length) return;
+    try { if (sessionStorage.getItem(`${STORE}-teased`)) return; } catch { /* storage unavailable: still show once */ }
+    this.teaserTimer = setTimeout(() => {
+      if (this.open) return;
+      this.teaserOn = true;
+      try { sessionStorage.setItem(`${STORE}-teased`, "1"); } catch { /* ignore */ }
+      this.render();
+    }, teaserDelay * 1000);
+  }
+
+  private openPanel() {
+    this.open = true; this.teaserOn = false; clearTimeout(this.teaserTimer);
+    beacon("open"); this.persistLive(); this.render();
+    this.root.getElementById("inp")?.focus();
+  }
+
+  /** Minimise: the conversation (and a running call) continues. */
+  private minimise() {
+    this.open = false; this.persistLive(); this.render();
+    (this.root.querySelector(".fab") as HTMLElement | null)?.focus();
+  }
+
+  /** End the conversation and clear it. */
+  private reset() {
+    this.hangup(); this.lines = []; this.error = ""; this.persist(); this.render();
+    this.root.getElementById("inp")?.focus();
+  }
+
+  private handoffLinks(): string {
+    const { phone, whatsapp, email } = this.cfg.handoff;
+    const links = [
+      phone && `<a href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${ICONS.phone}Call</a>`,
+      whatsapp && `<a href="https://wa.me/${esc(whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">${ICONS.chat}WhatsApp</a>`,
+      email && `<a href="mailto:${esc(email)}">${ICONS.mail}Email</a>`,
+    ].filter(Boolean);
+    return links.length ? `<div class="human"><span>Talk to a human</span>${links.join("")}</div>` : "";
+  }
+
   private render() {
-    const { name, color, icon, greeting, position } = this.cfg;
+    const { name, color, icon, greeting, position, starters, privacyUrl, showBranding } = this.cfg;
+    // Re-rendering replaces the DOM: keep what the visitor is typing and where the focus is.
+    const prev = this.root.getElementById("inp") as HTMLInputElement | null;
+    const draft = prev?.value ?? "";
+    const hadFocus = !!prev && this.root.activeElement === prev;
+    const caret = prev?.selectionStart ?? draft.length;
+
     const live = this.status === "live";
+    const busy = this.status === "connecting" && !this.voiceOn;
     const mm = `${Math.floor(this.secs / 60)}:${String(this.secs % 60).padStart(2, "0")}`;
     const hello = greeting || `Hi! I'm ${name}. Ask me anything. You can type here or tap the headset to talk.`;
+    const chips = !this.lines.length && starters.length
+      ? `<div class="chips">${starters.map((q, i) => `<button type="button" data-q="${i}">${esc(q)}</button>`).join("")}</div>` : "";
+    const legal = [
+      "AI assistant · may make mistakes",
+      privacyUrl && `<a href="${esc(privacyUrl)}" target="_blank" rel="noopener noreferrer">Privacy</a>`,
+      showBranding && `<a href="${esc(API)}" target="_blank" rel="noopener">Powered by TechThrust</a>`,
+    ].filter(Boolean).join(" · ");
     const chat = this.open ? `
-      <section class="panel" role="dialog" aria-label="${esc(name)}">
-        <header><span class="dot ${live ? "on" : ""}"></span><b>${esc(name)}</b>${this.reconnecting ? `<small>Reconnecting…</small>` : ""}<button data-a="close" aria-label="Close chat">${ICONS.x}</button></header>
-        <div class="log" id="log">
+      <section class="panel" role="dialog" aria-modal="false" aria-label="${esc(name)}">
+        <header><span class="dot ${live ? "on" : ""}" aria-hidden="true"></span><b>${esc(name)}</b>${this.reconnecting ? `<small>Reconnecting…</small>` : ""}
+          ${this.lines.length ? `<button data-a="reset" aria-label="End and clear the conversation" title="New conversation">${ICONS.trash}</button>` : ""}
+          <button data-a="close" aria-label="Minimise chat" title="Minimise">${ICONS.minus}</button></header>
+        <div class="log" id="log" role="log" aria-live="polite" aria-label="Conversation">
           <div class="msg bot">${esc(hello)}</div>
           ${this.lines.map((l) => `<div class="row ${l.role === "you" ? "me" : ""}"><div class="msg ${l.role === "you" ? "me" : "bot"}">${esc(l.text)}</div></div>`).join("")}
-          ${this.thinking ? `<div class="msg bot dots"><i></i><i></i><i></i></div>` : ""}
+          ${this.thinking ? `<div class="msg bot dots" aria-label="Typing"><i></i><i></i><i></i></div>` : ""}
+          ${chips}
         </div>
-        ${this.error ? `<div class="err">${esc(this.error)}</div>` : ""}
+        ${this.error ? `<div class="err" role="alert">${esc(this.error)}</div>` : ""}
+        ${this.handoffLinks()}
         <form data-a="send">
-          <button type="button" class="call ${this.voiceOn ? "live" : ""}" data-a="voice" aria-label="${this.voiceOn ? "End call" : "Start a voice call"}" title="${this.voiceOn ? "End call" : "Talk"}">${this.status === "connecting" && !this.voiceOn ? ICONS.spin : this.voiceOn ? ICONS.x : ICONS.headset}</button>
+          <button type="button" class="call ${this.voiceOn ? "live" : ""}" data-a="voice" aria-label="${this.voiceOn ? "End call" : "Start a voice call"}" title="${this.voiceOn ? "End call" : "Talk"}">${busy ? ICONS.spin : this.voiceOn ? ICONS.x : ICONS.headset}</button>
           <input id="inp" placeholder="Type your message…" aria-label="Type your message" maxlength="1000" autocomplete="off">
-          <button type="submit" aria-label="Send message">${this.status === "connecting" && !this.voiceOn ? ICONS.spin : ICONS.send}</button>
+          <button type="submit" aria-label="Send message">${busy ? ICONS.spin : ICONS.send}</button>
         </form>
+        <p class="legal">${legal}</p>
       </section>` : "";
-    const caption = !this.open && this.voiceOn && this.lines.length ? `<div class="toast">${esc(this.lines[this.lines.length - 1]!.text.slice(-200))}</div>` : "";
+    const teaser = !this.open && this.teaserOn
+      ? `<div class="teaser"><button class="tbody" data-a="open">${esc(this.cfg.teaser)}</button><button class="tx" data-a="dismiss" aria-label="Dismiss">${ICONS.x}</button></div>` : "";
+    const caption = !this.open && this.voiceOn && this.lines.length ? `<div class="toast" aria-live="polite">${esc(this.lines[this.lines.length - 1]!.text.slice(-200))}</div>` : "";
     const tap = this.needsTap ? `<button class="toast" data-a="voice">Tap to continue talking</button>` : "";
-    const err = !this.open && this.error ? `<div class="toast err">${esc(this.error)}</div>` : "";
+    const err = !this.open && this.error ? `<div class="toast err" role="alert">${esc(this.error)}</div>` : "";
     const pill = this.voiceOn && !this.open ? `
-      <div class="pill"><span class="t">${this.status === "connecting" ? ICONS.spin : mm}</span>
+      <div class="pill"><span class="t" aria-label="Call time">${this.status === "connecting" ? ICONS.spin : mm}</span>
         <button data-a="stoptalk" aria-label="Stop talking" title="Stop talking">${ICONS.volumeX}</button>
-        <button data-a="mute" aria-label="${this.muted ? "Unmute" : "Mute"}">${this.muted ? ICONS.micOff : ICONS.mic}</button>
+        <button data-a="mute" aria-label="${this.muted ? "Unmute" : "Mute"}" aria-pressed="${this.muted}">${this.muted ? ICONS.micOff : ICONS.mic}</button>
         <button data-a="end" class="red" aria-label="End call">${ICONS.x}</button></div>` : "";
+    const unread = !this.open && this.lines.length && !this.voiceOn ? `<span class="badge" aria-hidden="true"></span>` : "";
     this.root.innerHTML = `<style>${STYLES.replace(/__ACCENT__/g, color).replace(/__ON__/g, onColor(color))}</style>
-      <div class="wrap ${position === "left" ? "left" : "right"}">${chat}${tap}${caption}${err}
+      <div class="wrap ${position === "left" ? "left" : "right"} ${this.open ? "is-open" : ""}">${chat}${teaser}${tap}${caption}${err}
         <div class="bar">${pill}
-          <button class="fab ${this.voiceOn ? "live" : ""}" data-a="${this.open ? "close" : "open"}" aria-label="${this.open ? "Close chat" : `Chat with ${esc(name)}`}">${this.open ? ICONS.x : launcherIcon(icon)}</button>
+          <button class="fab ${this.voiceOn ? "live" : ""}" data-a="${this.open ? "close" : "open"}" aria-expanded="${this.open}" aria-label="${this.open ? "Minimise chat" : `Chat with ${esc(name)}`}">${this.open ? ICONS.x : launcherIcon(icon)}${unread}</button>
         </div></div>`;
     this.bind();
     const log = this.root.getElementById("log");
     if (log) log.scrollTop = log.scrollHeight;
-    if (this.open) this.root.getElementById("inp")?.toggleAttribute("autofocus", false);
+    const inp = this.root.getElementById("inp") as HTMLInputElement | null;
+    if (inp && draft) inp.value = draft;
+    if (inp && hadFocus) { inp.focus(); inp.setSelectionRange(caret, caret); }
   }
 
   private bind() {
     const on = (sel: string, fn: () => void) => this.root.querySelectorAll(`[data-a="${sel}"]`).forEach((el) => el.addEventListener("click", fn));
-    on("open", () => { this.open = true; beacon("open"); this.persistLive(); this.render(); });
-    on("close", () => { this.hangup(); this.open = false; this.lines = []; this.persist(); this.render(); });
+    on("open", () => this.openPanel());
+    on("close", () => this.minimise());
+    on("reset", () => this.reset());
+    on("dismiss", () => { this.teaserOn = false; this.render(); });
     on("voice", () => { void this.toggleVoice(); });
     on("mute", () => { this.muted = !this.muted; this.render(); });
     on("stoptalk", () => this.stopTalking());
     on("end", () => this.hangup());
+    this.root.querySelectorAll<HTMLButtonElement>("[data-q]").forEach((b) =>
+      b.addEventListener("click", () => { const q = this.cfg.starters[Number(b.dataset.q)]; if (q) void this.sendText(q); }));
     const form = this.root.querySelector<HTMLFormElement>('form[data-a="send"]');
     const inp = this.root.getElementById("inp") as HTMLInputElement | null;
-    inp?.addEventListener("keydown", (e) => e.stopPropagation()); // keep the site's keyboard shortcuts out
+    inp?.addEventListener("keydown", (e) => { if (e.key !== "Escape") e.stopPropagation(); }); // keep the site's shortcuts out; Esc minimises
     form?.addEventListener("submit", (e) => { e.preventDefault(); const v = inp?.value ?? ""; if (inp) inp.value = ""; void this.sendText(v); });
   }
 }
@@ -281,6 +369,9 @@ async function boot() {
     if (!res.ok) { console.warn("[widget] not available on this site"); return; }
     const cfg = (await res.json()) as PublicWidgetConfig;
     if (!/^#[0-9a-f]{6}$/i.test(cfg.color)) return; // never inject unexpected values into the stylesheet
+    if (cfg.privacyUrl && !/^https?:\/\//i.test(cfg.privacyUrl)) cfg.privacyUrl = "";
+    cfg.starters = Array.isArray(cfg.starters) ? cfg.starters.slice(0, 4) : [];
+    cfg.handoff ??= { phone: "", whatsapp: "", email: "" };
     new Widget(cfg);
   } catch { /* the host site must never break because of the widget */ }
 }

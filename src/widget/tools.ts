@@ -17,7 +17,9 @@ function siteLinks(): { label: string; path: string }[] {
   return out;
 }
 
-export async function runWidgetTool(name: string, args: Args, hooks: { beforeNavigate: () => void }): Promise<Args> {
+export type ToolHooks = { beforeNavigate: () => void; saveLead: (lead: Args) => Promise<Args> };
+
+export async function runWidgetTool(name: string, args: Args, hooks: ToolHooks): Promise<Args> {
   try {
     switch (name) {
       case "navigate_to": {
@@ -42,6 +44,14 @@ export async function runWidgetTool(name: string, args: Args, hooks: { beforeNav
           site_links: siteLinks(),
         };
       }
+      case "save_lead":
+        return await hooks.saveLead({
+          name: String(args.name ?? ""),
+          email: String(args.email ?? ""),
+          phone: String(args.phone ?? ""),
+          message: String(args.message ?? ""),
+          page: location.pathname,
+        });
       default: return { ok: false, error: `unknown tool ${name}` };
     }
   } catch (e) {

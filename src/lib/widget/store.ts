@@ -1,7 +1,7 @@
 // Server-only widget storage.
 // Production (Cloudflare Workers): the KV namespace bound as WIDGETS (see vite.config.ts).
 // Local dev (`vite dev`, no Worker runtime): a JSON file in .data/, so the console works without Cloudflare.
-import { summarize, WIDGET_ID, type WidgetRecord, type WidgetSummary } from "./shared";
+import { summarize, WIDGET_DEFAULTS, WIDGET_ID, type WidgetRecord, type WidgetSummary } from "./shared";
 
 type KV = {
   get(key: string): Promise<string | null>;
@@ -51,9 +51,10 @@ export async function getWidget(id: unknown): Promise<WidgetRecord | null> {
   if (typeof id !== "string" || !WIDGET_ID.test(id)) return null;
   if (backend() === "kv") {
     const raw = await kv()!.get(PREFIX + id);
-    return raw ? (JSON.parse(raw) as WidgetRecord) : null;
+    return raw ? ({ ...WIDGET_DEFAULTS, ...JSON.parse(raw) } as WidgetRecord) : null;
   }
-  return (await devRead())[id] ?? null;
+  const w = (await devRead())[id];
+  return w ? { ...WIDGET_DEFAULTS, ...w } : null;
 }
 
 export async function putWidget(w: WidgetRecord): Promise<void> {
