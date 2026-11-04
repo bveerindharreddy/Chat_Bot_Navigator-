@@ -8,6 +8,7 @@ import { WIDGET_COLORS, WIDGET_DEFAULTS, widgetInput, type WidgetIcon, type Widg
 import { onColor } from "@/widget/ui";
 import { cn } from "@/lib/utils";
 import { LeadsPanel } from "@/components/console/leads";
+import { ReportLinkCard } from "@/components/console/report-link";
 import { Switch } from "@/components/ui/switch";
 import { fmtCredits, RatesCard, UsagePanel, type ApiFn, type Period, type WidgetUsage } from "@/components/console/usage";
 import type { Rates } from "@/lib/widget/usage";
@@ -30,7 +31,7 @@ const EMPTY: WidgetInput = { name: "", url: "", extraDomains: [], prompt: "", gr
 
 /** The editable part of a stored widget. */
 const toForm = (w: WidgetRecord): WidgetInput => {
-  const { id: _i, origins: _o, status: _s, created: _c, updated: _u, ...rest } = w;
+  const { id: _i, origins: _o, status: _s, created: _c, updated: _u, reportSecret: _r, reportLeads: _l, ...rest } = w;
   return { ...EMPTY, ...rest };
 };
 
@@ -390,6 +391,10 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
         )}
 
         {editing && <LeadsPanel api={call} widgetId={editing.id} />}
+
+        {editing && (
+          <ReportLinkCard api={call} widget={editing} onChange={(reportSecret, reportLeads) => setEditing((w) => (w ? { ...w, reportSecret, reportLeads } : w))} />
+        )}
       </div>
 
       <aside className="min-w-0 space-y-6 lg:sticky lg:top-6">

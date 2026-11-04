@@ -52,12 +52,24 @@ export const WIDGET_DEFAULTS = {
   handoffEmail: "",
   privacyUrl: "",
   showBranding: true,
+  reportSecret: "",
+  reportLeads: false,
 };
 
 export type WidgetStatus = "active" | "revoked";
 
 /** Stored server-side in KV. The prompt never leaves the server (only the console API returns it, to the admin). */
-export type WidgetRecord = WidgetInput & { id: string; origins: string[]; status: WidgetStatus; created: number; updated: number };
+export type WidgetRecord = WidgetInput & {
+  id: string;
+  origins: string[];
+  status: WidgetStatus;
+  created: number;
+  updated: number;
+  /** Secret part of the client report link ("" = no link). */
+  reportSecret: string;
+  /** Whether the client report shows lead names and contact details. */
+  reportLeads: boolean;
+};
 
 /** The console list row (kept in KV metadata, so listing needs no extra reads). */
 export type WidgetSummary = { id: string; name: string; host: string; color: string; icon: WidgetIcon; status: WidgetStatus; created: number; updated: number };

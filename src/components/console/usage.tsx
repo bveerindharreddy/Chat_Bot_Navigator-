@@ -21,7 +21,7 @@ const minutes = (secs: number) => num.format(Math.round(secs / 6) / 10);
 
 // Chart colours: categorical slots 1-2 of the validated reference palette (light / dark steps), checked with the
 // palette validator in both modes. Text never uses these; they only fill marks and legend swatches.
-const VIZ_CSS = `
+export const VIZ_CSS = `
 .viz{--s1:#2a78d6;--s2:#eb6834}
 .dark .viz{--s1:#3987e5;--s2:#d95926}
 @media (forced-colors: active){.viz{--s1:CanvasText;--s2:GrayText}}
@@ -242,7 +242,7 @@ export function UsagePanel({ api, widgetId, period, onPeriod, onBalance }: { api
   );
 }
 
-function UsageTable({ daily }: { daily: DailyUsage[] }) {
+export function UsageTable({ daily }: { daily: DailyUsage[] }) {
   return (
     <div className="max-h-72 overflow-auto rounded-lg border border-border">
       <table className="w-full text-sm">
@@ -265,7 +265,7 @@ function UsageTable({ daily }: { daily: DailyUsage[] }) {
 }
 
 /** Stacked daily columns (chat below, voice above). One axis, recessive grid, hover/focus tooltip per day. */
-function UsageChart({ daily }: { daily: DailyUsage[] }) {
+export function UsageChart({ daily }: { daily: DailyUsage[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 600, H = 170, L = 28, R = 6, T = 8, B = 22;
   const iw = W - L - R, ih = H - T - B;

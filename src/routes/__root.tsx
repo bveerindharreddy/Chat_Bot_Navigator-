@@ -106,7 +106,7 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const bare = pathname.startsWith("/presentation");
-  const admin = pathname.startsWith("/console"); // standalone product console: no site chrome, no site assistant
+  const admin = pathname.startsWith("/console") || pathname.startsWith("/report/"); // standalone product pages: no site chrome, no site assistant
   return (
     <QueryClientProvider client={queryClient}>
       <DemoProvider>
