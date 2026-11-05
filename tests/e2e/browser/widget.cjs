@@ -45,7 +45,7 @@ const SITE = 'http://127.0.0.1:8091/';
   await click('[data-a="reset"]'); await p.waitForTimeout(200);
   ok(!(await sr('.row.me')) && (await sr('.chips')), 'New conversation clears it and shows chips again');
   // lead endpoint from the customer site (what the save_lead tool does), cross-origin with CORS
-  const lead = await p.evaluate(async (key) => { const r = await fetch('http://127.0.0.1:8099/api/widget/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, name: 'Cara', email: 'cara@example.com', page: '/' }) }); return r.status + ' ' + JSON.stringify(await r.json()); }, process.env.WID);
+  const lead = await p.evaluate(async ([key, B]) => { const r = await fetch(B + '/api/widget/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, name: 'Cara', email: 'cara@example.com', page: '/' }) }); return r.status + ' ' + JSON.stringify(await r.json()); }, [process.env.WID, process.env.B || 'http://127.0.0.1:8099']);
   ok(/^200 \{"ok":true,"id":\d+\}$/.test(lead), 'save_lead call from customer site (CORS) ' + lead);
   ok(errs.length === 0, 'no page errors ' + JSON.stringify(errs));
   // phone: full screen

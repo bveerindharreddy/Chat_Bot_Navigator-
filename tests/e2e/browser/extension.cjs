@@ -68,7 +68,7 @@ const { EXTW, NOEXT } = process.env;
     ok(lead && lead.ok && lead.body && lead.body.ok, 'lead saved through the extension (server accepted its origin; spoofed key ignored)');
     // popup page renders
     const pop = await ctx.newPage(); await pop.setViewportSize({ width: 300, height: 360 }); await pop.goto(`chrome-extension://${id}/popup.html`); await pop.waitForTimeout(600);
-    ok((await pop.textContent('#server')) === '127.0.0.1:8099', 'popup shows the connected server');
+    ok((await pop.textContent('#server')) === new URL(B).host, 'popup shows the connected server');
     await pop.screenshot({ path: require('path').join(process.env.S || '.', 'ext-popup.png') });
   } catch (e) { fail++; console.log('FAIL exception', e.message.slice(0, 300)); }
   console.log(`== ${pass} passed, ${fail} failed`); await ctx.close();
