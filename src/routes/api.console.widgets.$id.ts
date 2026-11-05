@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/console/widgets/$id")({
         withWidget(ctx, async (w) => {
           const parsed = widgetInput.safeParse(await ctx.request.json().catch(() => null));
           if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid widget settings" }, { status: 400 });
-          const next: WidgetRecord = { ...w, ...parsed.data, origins: allowedOrigins(parsed.data.url, parsed.data.extraDomains), updated: Date.now() };
+          const next: WidgetRecord = { ...w, ...parsed.data, origins: allowedOrigins(parsed.data.url, parsed.data.extraDomains, parsed.data.allowExtension), updated: Date.now() };
           await putWidget(next);
           return Response.json({ widget: next, summary: summarize(next) });
         }),

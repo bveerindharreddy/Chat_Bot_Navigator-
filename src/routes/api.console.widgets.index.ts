@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/console/widgets/")({
         const parsed = widgetInput.safeParse(await request.json().catch(() => null));
         if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid widget settings" }, { status: 400 });
         const now = Date.now();
-        const w: WidgetRecord = { ...parsed.data, id: newWidgetId(), origins: allowedOrigins(parsed.data.url, parsed.data.extraDomains), status: "active", created: now, updated: now, reportSecret: "", reportLeads: false };
+        const w: WidgetRecord = { ...parsed.data, id: newWidgetId(), origins: allowedOrigins(parsed.data.url, parsed.data.extraDomains, parsed.data.allowExtension), status: "active", created: now, updated: now, reportSecret: "", reportLeads: false };
         try {
           await putWidget(w);
           const { startingCredits } = await getRates();

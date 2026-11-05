@@ -107,7 +107,8 @@ function Docs() {
 
           <Section id="performance" title="Performance & accessibility">
             <ul className="list-disc space-y-1 pl-5">
-              <li>The script is about 10 KB compressed and loads with <code>defer</code>, so it does not block your page. The voice component (about 70 KB) loads only when a visitor opens the chat.</li>
+              <li>The script is about 15 KB compressed and loads with <code>defer</code>, so it does not block your page. The voice component (about 70 KB) loads only when a visitor opens the chat.</li>
+              <li>The assistant's buttons and notices follow its language (English, Arabic, Urdu, Hindi, French, Spanish, German, Portuguese); Arabic and Urdu read right to left.</li>
               <li>Keyboard and screen-reader friendly: focus moves into the chat, <kbd>Esc</kbd> minimises it, new messages are announced, and animations respect “reduce motion”.</li>
               <li>On phones the chat opens full screen.</li>
             </ul>

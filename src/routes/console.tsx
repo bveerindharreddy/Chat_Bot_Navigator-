@@ -358,6 +358,10 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
               <label className={label} htmlFor="w-privacy">Privacy policy link <span className="font-normal text-muted-foreground">(recommended)</span></label>
               <Input id="w-privacy" value={form.privacyUrl} maxLength={300} onChange={(e) => set("privacyUrl", e.target.value)} placeholder="https://www.customer.com/privacy" />
             </div>
+            <label className="flex items-center justify-between gap-4 rounded-lg border border-border p-3 text-sm sm:col-span-2">
+              <span><span className="font-medium">Allow in the TechThrust Chrome extension</span><span className="block text-xs text-muted-foreground">Lets this assistant run as a browser companion on any website you visit, through the Chrome extension.</span></span>
+              <Switch checked={form.allowExtension} onCheckedChange={(v) => set("allowExtension", v)} aria-label="Allow in the TechThrust Chrome extension" />
+            </label>
             <label className="flex items-center justify-between gap-4 rounded-lg border border-border p-3 text-sm">
               <span><span className="font-medium">Show "Powered by TechThrust"</span><span className="block text-xs text-muted-foreground">Turn off for white-label plans.</span></span>
               <Switch checked={form.showBranding} onCheckedChange={(v) => set("showBranding", v)} aria-label='Show "Powered by TechThrust"' />
@@ -385,6 +389,8 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
             </div>
           </section>
         )}
+
+        {editing?.allowExtension && <ChromeCard id={editing.id} />}
 
         {editing && (
           <UsagePanel key={`u${openCount}`} api={call} widgetId={editing.id} period={period} onPeriod={setPeriod}
@@ -491,5 +497,34 @@ function Preview({ form }: { form: WidgetInput }) {
         <span className="flex size-14 items-center justify-center rounded-full shadow-lg" style={{ background: form.color, color: on }}><Icon className="size-6" aria-hidden /></span>
       </div>
     </div>
+  );
+}
+
+/** How to run this widget in Chrome through the TechThrust Assistant extension. */
+function ChromeCard({ id }: { id: string }) {
+  const [copied, setCopied] = useState("");
+  const copy = async (what: string, text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); setCopied(what); setTimeout(() => setCopied(""), 1500); };
+  const server = typeof location === "undefined" ? "" : location.origin;
+  const row = (what: string, label: string, value: string) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-28 text-sm text-muted-foreground">{label}</span>
+      <code className="min-w-0 flex-1 truncate rounded-lg border border-border bg-muted px-3 py-1.5 text-xs">{value}</code>
+      <Button size="sm" variant="ghost" onClick={() => void copy(what, value)} aria-label={`Copy ${label.toLowerCase()}`}>{copied === what ? <Check className="size-4" /> : <Copy className="size-4" />}</Button>
+    </div>
+  );
+  return (
+    <section className="card-premium space-y-4 p-6">
+      <div>
+        <h2 className="text-lg font-semibold">Use it in Chrome</h2>
+        <p className="mt-1 text-sm text-muted-foreground">The same assistant as a companion on any website you browse: chat, voice, guiding you around the page.</p>
+      </div>
+      <ol className="list-decimal space-y-1 pl-5 text-sm">
+        <li><a className="font-medium text-primary hover:underline" href="/techthrust-assistant-extension.zip" download>Download the extension</a> and unzip it.</li>
+        <li>Open <code>chrome://extensions</code>, switch on <b>Developer mode</b>, press <b>Load unpacked</b> and pick the unzipped folder.</li>
+        <li>In the extension's settings (opens by itself), paste the server address and this widget key, then press <b>Save and check</b>.</li>
+      </ol>
+      {row("server", "Server address", server)}
+      {row("key", "Widget key", id)}
+    </section>
   );
 }

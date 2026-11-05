@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "TechThrust Assistant",
+  "version": "1.0.0",
+  "description": "Your TechThrust voice and chat assistant as a companion on the websites you visit.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtTbecpRMZK8HxUwk7cK+sdBelOavRPBpbR7ayuRmpksrUHEMoCCQxGkOPgXh/fQrWq1/UO5o7lu86eTwFbBGSzt3JG7CeovY/fU5GXQGL8PW6bDXlnrOzlHzNg0A+byWDWCaLHMjVWdjju+ruhG33qox0F/DFDZcyNbMwP5wbSURP103CIym5MEHAST7LZRGwQ/HZ28dLFS0l8+60w5NCmioDiOZ3f1RqLc5Y1M/0U2yp3/Etz7//Ycwc9itEyLnMFxLqThSqVKpxtTpzFDWMAQsU+yUiRLTLjrTTy/Gtst+f7+Kj2hrxyhdQ1hNAKsEzhvtlfuiHhxW5t/iLVP4UQIDAQAB",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "TechThrust Assistant",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "minimum_chrome_version": "116"
+}

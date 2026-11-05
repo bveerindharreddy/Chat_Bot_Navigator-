@@ -42,3 +42,7 @@ public/widget-live.js
 # local dev widget store (production uses Cloudflare KV)
 .data/
 .data-*/
+
+# Chrome extension build (npm run build:extension)
+dist-extension/
+public/techthrust-assistant-extension.zip

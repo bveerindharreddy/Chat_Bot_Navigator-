@@ -4,6 +4,11 @@ import { z } from "zod";
 export const WIDGET_ICONS = ["chat", "headset", "sparkle", "bot", "phone"] as const;
 export type WidgetIcon = (typeof WIDGET_ICONS)[number];
 
+import { EXTENSION_ID } from "./extension-id";
+export { EXTENSION_ID };
+export const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
+const EXTENSION_ORIGIN_RE = /^chrome-extension:\/\/[a-p]{32}$/;
+
 export const WIDGET_COLORS = ["#0e7fae", "#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#16a34a", "#0f172a"] as const;
 
 export const widgetInput = z.object({
@@ -35,6 +40,8 @@ export const widgetInput = z.object({
   handoffEmail: z.string().trim().max(200).email("Invalid handoff email").or(z.literal("")).default(""),
   /** Privacy policy link shown in the AI disclosure line. */
   privacyUrl: z.string().trim().max(300).refine((u) => u === "" || /^https?:\/\/[^\s]+$/i.test(u), "Privacy link must be a URL").default(""),
+  /** Let this widget run in the TechThrust Chrome extension (as a browser companion on any site). */
+  allowExtension: z.boolean().default(false),
   /** "Powered by TechThrust" badge. Turning it off is the white-label option. */
   showBranding: z.boolean().default(true),
 });
@@ -52,6 +59,7 @@ export const WIDGET_DEFAULTS = {
   handoffEmail: "",
   privacyUrl: "",
   showBranding: true,
+  allowExtension: false,
   reportSecret: "",
   reportLeads: false,
 };
@@ -136,10 +144,19 @@ export function toOrigin(raw: string): string | null {
   }
 }
 
-/** The site origin plus its www / non-www twin. */
-export function allowedOrigins(url: string, extra: string[]): string[] {
+/**
+ * The site origin plus its www / non-www twin, extra domains, and the Chrome extension when allowed.
+ * An extra entry may also be a chrome-extension://<id> origin (e.g. a Chrome Web Store build with its own id).
+ */
+export function allowedOrigins(url: string, extra: string[], allowExtension = false): string[] {
   const set = new Set<string>();
+  if (allowExtension) set.add(EXTENSION_ORIGIN);
   for (const raw of [url, ...extra]) {
+    const ext = raw.trim().replace(/\/+$/, "");
+    if (/^chrome-extension:/i.test(ext)) {
+      if (EXTENSION_ORIGIN_RE.test(ext)) set.add(ext);
+      continue;
+    }
     const o = toOrigin(raw);
     if (!o) continue;
     set.add(o);
