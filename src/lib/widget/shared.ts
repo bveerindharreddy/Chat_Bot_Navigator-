@@ -100,7 +100,16 @@ export type PublicWidgetConfig = {
   handoff: { phone: string; whatsapp: string; email: string };
   privacyUrl: string;
   showBranding: boolean;
+  /** Interface language code for the widget's own buttons and labels ("ar" also switches it to right-to-left). */
+  lang: string;
 };
+
+const LANG_CODES: Record<string, string> = {
+  english: "en", arabic: "ar", urdu: "ur", hindi: "hi", french: "fr", spanish: "es", german: "de", portuguese: "pt",
+  en: "en", ar: "ar", ur: "ur", hi: "hi", fr: "fr", es: "es", de: "de", pt: "pt",
+};
+/** "Arabic", "arabic" or "ar" -> "ar"; any language without translated buttons -> "en". */
+export const langCode = (language: string) => LANG_CODES[language.trim().toLowerCase().split(/[\s(-]/)[0] ?? ""] ?? "en";
 
 export const publicConfig = (w: WidgetRecord): PublicWidgetConfig => ({
   name: w.name,
@@ -114,6 +123,7 @@ export const publicConfig = (w: WidgetRecord): PublicWidgetConfig => ({
   handoff: { phone: w.handoffPhone, whatsapp: w.handoffWhatsapp, email: w.handoffEmail },
   privacyUrl: w.privacyUrl,
   showBranding: w.showBranding,
+  lang: langCode(w.language || "English"),
 });
 
 /** Normalises "shop.example.com" or "https://shop.example.com/page" to an origin; null if invalid. */

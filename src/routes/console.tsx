@@ -319,7 +319,7 @@ function Dashboard({ initial, onDenied }: { initial: WidgetSummary[]; onDenied: 
               <label className={label} htmlFor="w-lang">Assistant language</label>
               <Input id="w-lang" value={form.language} maxLength={30} onChange={(e) => set("language", e.target.value)} placeholder="English" list="w-langs" />
               <datalist id="w-langs">{["English", "Arabic", "Hindi", "Urdu", "French", "Spanish", "German", "Portuguese", "Russian", "Chinese"].map((l) => <option key={l} value={l} />)}</datalist>
-              <p className="mt-1.5 text-xs text-muted-foreground">Starts in this language; switches if the visitor clearly uses another.</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">Starts in this language; switches if the visitor clearly uses another. The widget's buttons are translated for English, Arabic, Urdu, Hindi, French, Spanish, German and Portuguese (Arabic and Urdu right-to-left).</p>
             </div>
             <div>
               <label className={label} htmlFor="w-teaser">Pop-up greeting <span className="font-normal text-muted-foreground">(optional)</span></label>

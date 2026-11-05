@@ -1,6 +1,6 @@
 // Server-only widget storage.
 // Production (Cloudflare Workers): the KV namespace bound as WIDGETS (see vite.config.ts).
-// Local dev (`vite dev`, no Worker runtime): a JSON file in .data/, so the console works without Cloudflare.
+// Local dev (`vite dev`, no Worker runtime): a JSON file in .data/ (or WIDGET_DEV_DATA_DIR), so the console works without Cloudflare.
 import { summarize, WIDGET_DEFAULTS, WIDGET_ID, type WidgetRecord, type WidgetSummary } from "./shared";
 
 type KV = {
@@ -24,15 +24,17 @@ function kv(): KV | null {
 }
 
 // ---------- dev fallback: .data/widgets.json ----------
-const DEV_FILE = ".data/widgets.json";
+// WIDGET_DEV_DATA_DIR lets tests run a second dev server on its own data.
+const devDir = () => process.env.WIDGET_DEV_DATA_DIR || ".data";
+const devFile = () => `${devDir()}/widgets.json`;
 async function devRead(): Promise<Record<string, WidgetRecord>> {
   const fs = await import("node:fs/promises");
-  try { return JSON.parse(await fs.readFile(DEV_FILE, "utf8")); } catch { return {}; }
+  try { return JSON.parse(await fs.readFile(devFile(), "utf8")); } catch { return {}; }
 }
 async function devWrite(all: Record<string, WidgetRecord>) {
   const fs = await import("node:fs/promises");
-  await fs.mkdir(".data", { recursive: true });
-  await fs.writeFile(DEV_FILE, JSON.stringify(all, null, 2));
+  await fs.mkdir(devDir(), { recursive: true });
+  await fs.writeFile(devFile(), JSON.stringify(all, null, 2));
 }
 
 function backend(): "kv" | "dev" {

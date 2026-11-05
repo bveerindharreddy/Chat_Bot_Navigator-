@@ -41,8 +41,9 @@ async function openDevDb(): Promise<DB> {
   const spec = "node:sqlite"; // kept out of the Worker bundle: only `vite dev` (Node) reaches this
   const { DatabaseSync } = await import(/* @vite-ignore */ spec);
   const fs = await import("node:fs");
-  fs.mkdirSync(".data", { recursive: true });
-  const db = new DatabaseSync(".data/usage.sqlite");
+  const dir = process.env.WIDGET_DEV_DATA_DIR || ".data";
+  fs.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync(`${dir}/usage.sqlite`);
   const stmt = (sql: string, params: unknown[] = []): Stmt => ({
     bind: (...v) => stmt(sql, v),
     run: async () => db.prepare(sql).run(...params),

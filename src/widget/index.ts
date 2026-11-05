@@ -7,6 +7,7 @@ import type { LiveModule } from "./live";
 import type { PublicWidgetConfig } from "@/lib/widget/shared";
 import { runWidgetTool } from "./tools";
 import { STYLES, ICONS, launcherIcon, onColor } from "./ui";
+import { fill, isRtl, strings, type Strings } from "./i18n";
 
 type Line = { role: "you" | "bot"; text: string; typed?: boolean };
 type Status = "idle" | "connecting" | "live" | "error";
@@ -35,10 +36,15 @@ function loadLive(): Promise<LiveModule> {
     const s = document.createElement("script");
     s.src = `${API}/widget-live.js?v=${__WIDGET_BUILD__}`;
     s.async = true;
-    s.onload = () => (w.__techthrustWidgetLive ? resolve(w.__techthrustWidgetLive) : reject(new Error("Could not load the assistant")));
-    s.onerror = () => { liveModule = null; reject(new Error("Could not load the assistant. Check your connection and try again.")); };
+    s.onload = () => (w.__techthrustWidgetLive ? resolve(w.__techthrustWidgetLive) : reject(new WidgetError("failed")));
+    s.onerror = () => { liveModule = null; reject(new WidgetError("connection")); };
     document.head.appendChild(s);
   }));
+}
+
+/** An error the visitor sees, as a key into the widget's interface strings (shown in the widget's language). */
+class WidgetError extends Error {
+  constructor(readonly key: "unavailable" | "busy" | "failed" | "connection" | "micBlocked") { super(key); }
 }
 
 const post = (path: string, body: unknown) =>
@@ -75,6 +81,9 @@ class Widget {
   private needsContext = this.saved.lines.length > 0; // a fresh session after a page change has no memory
   private teaserOn = false;
   private teaserTimer?: ReturnType<typeof setTimeout>;
+
+  /** Interface text in the widget's language. */
+  private get t(): Strings { return strings(this.cfg.lang); }
 
   constructor(private cfg: PublicWidgetConfig) {
     this.host.id = HOST_ID;
@@ -122,7 +131,7 @@ class Widget {
     try {
       const res = await post("/api/widget/token", { key: WIDGET_KEY, mode: withMic ? "voice" : "chat", resumed });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Could not start the assistant");
+      if (!res.ok) throw new WidgetError(res.status === 429 ? "busy" : res.status === 402 || res.status === 403 ? "unavailable" : "failed");
       const { Client, Speaker } = await loadLive();
       const ai = new Client({ apiKey: body.token, httpOptions: { apiVersion: "v1alpha" } });
       this.player = new Speaker();
@@ -131,7 +140,7 @@ class Widget {
         config: {}, // prompt, tools and audio settings are locked server-side in the token
         callbacks: {
           onmessage: (m) => { void this.onMessage(m); },
-          onerror: (e) => { this.error = e.message || "Connection error"; this.status = "error"; this.render(); },
+          onerror: () => { this.error = this.t.connection; this.status = "error"; this.render(); },
           onclose: () => { if (this.status !== "error") { this.status = "idle"; this.teardownAudio(); this.render(); } },
         },
       });
@@ -157,8 +166,8 @@ class Widget {
     } catch (e) {
       this.reconnecting = false;
       this.hangup();
-      const msg = e instanceof Error ? e.message : "Something went wrong";
-      this.error = /permission|denied|notallowed/i.test(msg) ? "Microphone access was blocked." : msg;
+      const msg = e instanceof Error ? `${e.name} ${e.message}` : "";
+      this.error = e instanceof WidgetError ? this.t[e.key] : /permission|denied|notallowed/i.test(msg) ? this.t.micBlocked : /fetch|network/i.test(msg) ? this.t.connection : this.t.failed;
       this.status = "error"; this.render();
       return false;
     }
@@ -220,7 +229,7 @@ class Widget {
     if (this.status === "connecting") return;
     if (this.voiceOn) { this.hangup(); return; }
     if (!this.session) { await this.connect(true); return; }
-    try { await this.startMic(); beacon("call_start"); this.render(); } catch { this.error = "Microphone access was blocked."; this.render(); }
+    try { await this.startMic(); beacon("call_start"); this.render(); } catch { this.error = this.t.micBlocked; this.render(); }
   }
 
   private stopTalking() {
@@ -293,11 +302,11 @@ class Widget {
   private handoffLinks(): string {
     const { phone, whatsapp, email } = this.cfg.handoff;
     const links = [
-      phone && `<a href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${ICONS.phone}Call</a>`,
-      whatsapp && `<a href="https://wa.me/${esc(whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">${ICONS.chat}WhatsApp</a>`,
-      email && `<a href="mailto:${esc(email)}">${ICONS.mail}Email</a>`,
+      phone && `<a href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${ICONS.phone}${esc(this.t.call)}</a>`,
+      whatsapp && `<a href="https://wa.me/${esc(whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">${ICONS.chat}${esc(this.t.whatsapp)}</a>`,
+      email && `<a href="mailto:${esc(email)}">${ICONS.mail}${esc(this.t.email)}</a>`,
     ].filter(Boolean);
-    return links.length ? `<div class="human"><span>Talk to a human</span>${links.join("")}</div>` : "";
+    return links.length ? `<div class="human"><span>${esc(this.t.talkHuman)}</span>${links.join("")}</div>` : "";
   }
 
   private render() {
@@ -311,49 +320,52 @@ class Widget {
     const live = this.status === "live";
     const busy = this.status === "connecting" && !this.voiceOn;
     const mm = `${Math.floor(this.secs / 60)}:${String(this.secs % 60).padStart(2, "0")}`;
-    const hello = greeting || `Hi! I'm ${name}. Ask me anything. You can type here or tap the headset to talk.`;
+    const t = this.t;
+    // The frame stays anchored to the chosen corner; only the panel's contents flow right-to-left.
+    const dir = isRtl(this.cfg.lang) ? "rtl" : "ltr";
+    const hello = greeting || fill(t.greeting, name);
     const chips = !this.lines.length && starters.length
       ? `<div class="chips">${starters.map((q, i) => `<button type="button" data-q="${i}">${esc(q)}</button>`).join("")}</div>` : "";
     const legal = [
-      "AI assistant · may make mistakes",
-      privacyUrl && `<a href="${esc(privacyUrl)}" target="_blank" rel="noopener noreferrer">Privacy</a>`,
-      showBranding && `<a href="${esc(API)}" target="_blank" rel="noopener">Powered by TechThrust</a>`,
+      esc(t.disclosure),
+      privacyUrl && `<a href="${esc(privacyUrl)}" target="_blank" rel="noopener noreferrer">${esc(t.privacy)}</a>`,
+      showBranding && `<a href="${esc(API)}" target="_blank" rel="noopener">${esc(t.poweredBy)}</a>`,
     ].filter(Boolean).join(" · ");
     const chat = this.open ? `
-      <section class="panel" role="dialog" aria-modal="false" aria-label="${esc(name)}">
-        <header><span class="dot ${live ? "on" : ""}" aria-hidden="true"></span><b>${esc(name)}</b>${this.reconnecting ? `<small>Reconnecting…</small>` : ""}
-          ${this.lines.length ? `<button data-a="reset" aria-label="End and clear the conversation" title="New conversation">${ICONS.trash}</button>` : ""}
-          <button data-a="close" aria-label="Minimise chat" title="Minimise">${ICONS.minus}</button></header>
-        <div class="log" id="log" role="log" aria-live="polite" aria-label="Conversation">
+      <section class="panel" role="dialog" aria-modal="false" aria-label="${esc(name)}" dir="${dir}">
+        <header><span class="dot ${live ? "on" : ""}" aria-hidden="true"></span><b>${esc(name)}</b>${this.reconnecting ? `<small>${esc(t.reconnecting)}</small>` : ""}
+          ${this.lines.length ? `<button data-a="reset" aria-label="${esc(t.clearConv)}" title="${esc(t.newConv)}">${ICONS.trash}</button>` : ""}
+          <button data-a="close" aria-label="${esc(t.minimise)}" title="${esc(t.minimise)}">${ICONS.minus}</button></header>
+        <div class="log" id="log" role="log" aria-live="polite" aria-label="${esc(t.conversation)}">
           <div class="msg bot">${esc(hello)}</div>
           ${this.lines.map((l) => `<div class="row ${l.role === "you" ? "me" : ""}"><div class="msg ${l.role === "you" ? "me" : "bot"}">${esc(l.text)}</div></div>`).join("")}
-          ${this.thinking ? `<div class="msg bot dots" aria-label="Typing"><i></i><i></i><i></i></div>` : ""}
+          ${this.thinking ? `<div class="msg bot dots" aria-label="${esc(t.typing)}"><i></i><i></i><i></i></div>` : ""}
           ${chips}
         </div>
         ${this.error ? `<div class="err" role="alert">${esc(this.error)}</div>` : ""}
         ${this.handoffLinks()}
         <form data-a="send">
-          <button type="button" class="call ${this.voiceOn ? "live" : ""}" data-a="voice" aria-label="${this.voiceOn ? "End call" : "Start a voice call"}" title="${this.voiceOn ? "End call" : "Talk"}">${busy ? ICONS.spin : this.voiceOn ? ICONS.x : ICONS.headset}</button>
-          <input id="inp" placeholder="Type your message…" aria-label="Type your message" maxlength="1000" autocomplete="off">
-          <button type="submit" aria-label="Send message">${busy ? ICONS.spin : ICONS.send}</button>
+          <button type="button" class="call ${this.voiceOn ? "live" : ""}" data-a="voice" aria-label="${esc(this.voiceOn ? t.endCall : t.startCall)}" title="${esc(this.voiceOn ? t.endCall : t.talk)}">${busy ? ICONS.spin : this.voiceOn ? ICONS.x : ICONS.headset}</button>
+          <input id="inp" placeholder="${esc(t.typeHere)}" aria-label="${esc(t.typeHere)}" maxlength="1000" autocomplete="off">
+          <button type="submit" aria-label="${esc(t.send)}">${busy ? ICONS.spin : ICONS.send}</button>
         </form>
         <p class="legal">${legal}</p>
       </section>` : "";
     const teaser = !this.open && this.teaserOn
-      ? `<div class="teaser"><button class="tbody" data-a="open">${esc(this.cfg.teaser)}</button><button class="tx" data-a="dismiss" aria-label="Dismiss">${ICONS.x}</button></div>` : "";
-    const caption = !this.open && this.voiceOn && this.lines.length ? `<div class="toast" aria-live="polite">${esc(this.lines[this.lines.length - 1]!.text.slice(-200))}</div>` : "";
-    const tap = this.needsTap ? `<button class="toast" data-a="voice">Tap to continue talking</button>` : "";
-    const err = !this.open && this.error ? `<div class="toast err" role="alert">${esc(this.error)}</div>` : "";
+      ? `<div class="teaser" dir="${dir}"><button class="tbody" data-a="open">${esc(this.cfg.teaser)}</button><button class="tx" data-a="dismiss" aria-label="${esc(t.dismiss)}">${ICONS.x}</button></div>` : "";
+    const caption = !this.open && this.voiceOn && this.lines.length ? `<div class="toast" dir="${dir}" aria-live="polite">${esc(this.lines[this.lines.length - 1]!.text.slice(-200))}</div>` : "";
+    const tap = this.needsTap ? `<button class="toast" dir="${dir}" data-a="voice">${esc(t.tapContinue)}</button>` : "";
+    const err = !this.open && this.error ? `<div class="toast err" dir="${dir}" role="alert">${esc(this.error)}</div>` : "";
     const pill = this.voiceOn && !this.open ? `
-      <div class="pill"><span class="t" aria-label="Call time">${this.status === "connecting" ? ICONS.spin : mm}</span>
-        <button data-a="stoptalk" aria-label="Stop talking" title="Stop talking">${ICONS.volumeX}</button>
-        <button data-a="mute" aria-label="${this.muted ? "Unmute" : "Mute"}" aria-pressed="${this.muted}">${this.muted ? ICONS.micOff : ICONS.mic}</button>
-        <button data-a="end" class="red" aria-label="End call">${ICONS.x}</button></div>` : "";
+      <div class="pill"><span class="t" aria-label="${esc(t.callTime)}">${this.status === "connecting" ? ICONS.spin : mm}</span>
+        <button data-a="stoptalk" aria-label="${esc(t.stopTalking)}" title="${esc(t.stopTalking)}">${ICONS.volumeX}</button>
+        <button data-a="mute" aria-label="${esc(this.muted ? t.unmute : t.mute)}" aria-pressed="${this.muted}">${this.muted ? ICONS.micOff : ICONS.mic}</button>
+        <button data-a="end" class="red" aria-label="${esc(t.endCall)}">${ICONS.x}</button></div>` : "";
     const unread = !this.open && this.lines.length && !this.voiceOn ? `<span class="badge" aria-hidden="true"></span>` : "";
     this.root.innerHTML = `<style>${STYLES.replace(/__ACCENT__/g, color).replace(/__ON__/g, onColor(color))}</style>
-      <div class="wrap ${position === "left" ? "left" : "right"} ${this.open ? "is-open" : ""}">${chat}${teaser}${tap}${caption}${err}
+      <div class="wrap ${position === "left" ? "left" : "right"} ${this.open ? "is-open" : ""}" lang="${esc(this.cfg.lang)}">${chat}${teaser}${tap}${caption}${err}
         <div class="bar">${pill}
-          <button class="fab ${this.voiceOn ? "live" : ""}" data-a="${this.open ? "close" : "open"}" aria-expanded="${this.open}" aria-label="${this.open ? "Minimise chat" : `Chat with ${esc(name)}`}">${this.open ? ICONS.x : launcherIcon(icon)}${unread}</button>
+          <button class="fab ${this.voiceOn ? "live" : ""}" data-a="${this.open ? "close" : "open"}" aria-expanded="${this.open}" aria-label="${esc(this.open ? t.minimise : fill(t.chatWith, name))}">${this.open ? ICONS.x : launcherIcon(icon)}${unread}</button>
         </div></div>`;
     this.bind();
     const log = this.root.getElementById("log");
@@ -393,6 +405,7 @@ async function boot() {
     if (cfg.privacyUrl && !/^https?:\/\//i.test(cfg.privacyUrl)) cfg.privacyUrl = "";
     cfg.starters = Array.isArray(cfg.starters) ? cfg.starters.slice(0, 4) : [];
     cfg.handoff ??= { phone: "", whatsapp: "", email: "" };
+    cfg.lang = typeof cfg.lang === "string" ? cfg.lang : "en";
     new Widget(cfg);
   } catch { /* the host site must never break because of the widget */ }
 }
