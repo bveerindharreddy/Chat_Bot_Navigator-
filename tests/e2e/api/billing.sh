@@ -1,0 +1,35 @@
+# Usage, credits, rates, statements. Run through tests/e2e/run.sh (needs B, PW, S).
+B=${B:-http://127.0.0.1:8099}; JB=$S/jarb.txt; rm -f $JB; curl -s -c $JB -o /dev/null -X POST -H 'content-type: application/json' $B/api/console/login -d '{"password":"'"$PW"'"}'; H=(-H 'content-type: application/json' -b $JB); O=(-H 'origin: https://acme.com')
+J() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)"; }
+pass=0; fail=0; chk() { if [ "$2" == "$3" ]; then echo "PASS $1 ($2)"; pass=$((pass+1)); else echo "FAIL $1: got '$2' want '$3'"; fail=$((fail+1)); fi; }
+chk "usage configured" "$(curl -s "${H[@]}" $B/api/console/usage | J 'd["configured"]')" "True"
+chk "default rates" "$(curl -s "${H[@]}" $B/api/console/rates | J 'd["rates"]')" "{'chat': 1, 'voiceMinute': 2, 'load': 0, 'startingCredits': 100, 'enforce': True}"
+chk "set rates" "$(curl -s "${H[@]}" -X PUT $B/api/console/rates -d '{"chat":1,"voiceMinute":2,"load":0.5,"startingCredits":10,"enforce":true}' | J 'd["rates"]["load"]')" "0.5"
+chk "bad rates rejected" "$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -X PUT $B/api/console/rates -d '{"chat":-1,"voiceMinute":2,"load":0,"startingCredits":10,"enforce":true}')" "400"
+ID=$(curl -s "${H[@]}" -X POST $B/api/console/widgets -d '{"name":"Aria","url":"https://www.acme.com","extraDomains":[],"prompt":"You are the assistant for Acme plumbing. Callout fee is $50.","greeting":"Hi","icon":"bot","color":"#7c3aed","position":"left"}' | J 'd["widget"]["id"]')
+chk "starting credits" "$(curl -s "${H[@]}" $B/api/console/usage/$ID | J 'd["balance"]')" "10"
+for i in 1 2; do curl -s -o /dev/null -X POST $B/api/widget/config -H 'content-type: application/json' "${O[@]}" -d "{\"key\":\"$ID\"}"; done
+chk "2 loads cost 0.5 each" "$(curl -s "${H[@]}" $B/api/console/usage/$ID | J 'd["balance"]')" "9"
+curl -s -o /dev/null -X POST $B/api/widget/event -H 'content-type: text/plain' "${O[@]}" -d "{\"key\":\"$ID\",\"type\":\"open\"}"
+curl -s -o /dev/null -X POST $B/api/widget/event -H 'content-type: text/plain' "${O[@]}" -d "{\"key\":\"$ID\",\"type\":\"call_start\"}"
+chk "call_start prepays 1 min (2cr)" "$(curl -s "${H[@]}" $B/api/console/usage/$ID | J 'd["balance"]')" "7"
+curl -s -o /dev/null -X POST $B/api/widget/event -H 'content-type: text/plain' "${O[@]}" -d "{\"key\":\"$ID\",\"type\":\"call_end\",\"secs\":150}"
+chk "150s call = 3 started min, 2 more billed (4cr)" "$(curl -s "${H[@]}" $B/api/console/usage/$ID | J 'd["balance"]')" "3"
+chk "event from wrong origin ignored" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/widget/event -H 'content-type: text/plain' -H 'origin: https://evil.com' -d "{\"key\":\"$ID\",\"type\":\"call_end\",\"secs\":1800}"; curl -s "${H[@]}" $B/api/console/usage/$ID | J 'd["balance"]')" "2043"
+chk "huge secs clamped to 30 min" "$(curl -s -o /dev/null -X POST $B/api/widget/event -H 'content-type: text/plain' "${O[@]}" -d "{\"key\":\"$ID\",\"type\":\"call_end\",\"secs\":999999}"; curl -s "${H[@]}" $B/api/console/usage/$ID | J 'd["balance"]')" "-55"
+chk "out of credits: config refused" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/widget/config -H 'content-type: application/json' "${O[@]}" -d "{\"key\":\"$ID\"}")" "403"
+chk "out of credits: token refused (402)" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/widget/token -H 'content-type: application/json' "${O[@]}" -d "{\"key\":\"$ID\",\"mode\":\"chat\"}")" "402"
+chk "top-up 100" "$(curl -s "${H[@]}" -X POST $B/api/console/usage/$ID -d '{"credits":100,"note":"Invoice #1042"}' | J 'd["balance"]')" "45"
+chk "zero top-up rejected" "$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -X POST $B/api/console/usage/$ID -d '{"credits":0}')" "400"
+chk "back in credit: config ok" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/widget/config -H 'content-type: application/json' "${O[@]}" -d "{\"key\":\"$ID\"}")" "200"
+chk "token reaches Gemini step (no key => 500)" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/widget/token -H 'content-type: application/json' "${O[@]}" -d "{\"key\":\"$ID\",\"mode\":\"chat\"}")" "500"
+chk "today's counters" "$(curl -s "${H[@]}" "$B/api/console/usage/$ID?days=7" | J 'd["daily"][-1]')" "{'day': '$(date -u +%F)', 'loads': 3, 'opens': 1, 'chats': 0, 'calls': 1, 'callSecs': 1950, 'used': 65.5}"
+chk "7 rows for 7 days" "$(curl -s "${H[@]}" "$B/api/console/usage/$ID?days=7" | J 'len(d["daily"])')" "7"
+chk "summary for list" "$(curl -s "${H[@]}" "$B/api/console/usage?days=30" | J "d['widgets']['$ID']['balance']")" "44.5"
+chk "ledger entries" "$(curl -s "${H[@]}" $B/api/console/usage/$ID | J '[(e["kind"],e["credits"],e["note"]) for e in d["ledger"]]')" "[('topup', 100, 'Invoice #1042'), ('topup', 10, 'Starting credits')]"
+curl -s "${H[@]}" "$B/api/console/statement?id=$ID&month=$(date -u +%Y-%m)" -o $S/statement.csv -w "statement %{http_code} %{content_type}\n"
+chk "statement closing = balance" "$(grep -c '"Closing balance (credits)","44.5"' $S/statement.csv)" "1"
+chk "statement bad month" "$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" "$B/api/console/statement?id=$ID&month=2026-13")" "400"
+chk "admin routes need sign-in" "$(for u in usage usage/$ID rates "statement?id=$ID&month=2026-11"; do curl -s -o /dev/null -w '%{http_code}' $B/api/console/$u; done)" "401401401401"
+chk "enforce off: serves at negative" "$(curl -s -o /dev/null "${H[@]}" -X POST $B/api/console/usage/$ID -d '{"credits":-200,"note":"test"}'; curl -s -o /dev/null "${H[@]}" -X PUT $B/api/console/rates -d '{"chat":1,"voiceMinute":2,"load":0.5,"startingCredits":10,"enforce":false}'; curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/widget/config -H 'content-type: application/json' "${O[@]}" -d "{\"key\":\"$ID\"}")" "200"
+echo "WID=$ID"; echo "== $pass passed, $fail failed"
